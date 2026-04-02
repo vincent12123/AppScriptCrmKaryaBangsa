@@ -2,7 +2,7 @@
 
 > Sistem CRM (Customer Relationship Management) berbasis Google Apps Script untuk manajemen dan followup calon siswa baru dalam proses **Seleksi Penerimaan Murid Baru (SPMB)**.
 
-**Dibuat oleh:** Sukardi, S.Kom  
+**Dibuat oleh:** Sukardi  
 **Institusi:** SMK Karya Bangsa, Sintang, Kalimantan Barat  
 **Platform:** Google Sheets + Google Apps Script (Web App)  
 **Lisensi:** Internal / Sekolah
@@ -218,6 +218,6 @@ URL tetap sama — tidak perlu bagikan ulang ke tim.
 
 ## 👤 Kontak
 
-**Sukardi, S.Kom**  
+**Sukardi**  
 IT Administrator — SMK Karya Bangsa Sintang  
 📧 sukardi@karyabangsa.sch.id

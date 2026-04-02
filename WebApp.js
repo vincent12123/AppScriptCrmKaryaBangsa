@@ -156,7 +156,7 @@ function getDashboardStats() {
     const sh   = ss.getSheetByName('DataCalon');
     const rows = sh.getLastRow();
 
-    const stats = { total:0, byStatus:{}, byJurusan:{}, byPic:{}, reminderHariIni:[], sudahDaftar:0, tidakJadi:0 };
+    const stats = { total:0, byStatus:{}, byJurusan:{}, byPic:{}, reminderHariIni:[], overdueCalon:[], sudahDaftar:0, tidakJadi:0 };
     if (rows <= 1) return stats; // Belum ada data
 
     const data = sh.getRange(2, 1, rows - 1, 14).getValues().filter(r => r[0]);
@@ -178,25 +178,29 @@ function getDashboardStats() {
       if (status === 'Sudah Daftar') stats.sudahDaftar++;
       if (status === 'Tidak Jadi')   stats.tidakJadi++;
 
-      // Cek reminder hari ini
+      // Cek reminder hari ini & overdue
+      const terminalStatuses = ['Sudah Daftar', 'Tidak Jadi'];
       if (r[10] && r[10] instanceof Date) {
         const jadwalStr = Utilities.formatDate(r[10], 'Asia/Jakarta', 'yyyy-MM-dd');
+        const calonEntry = {
+          id:              String(r[0]),
+          nama:            String(r[1]),
+          noWa:            String(r[2]),
+          asalSekolah:     String(r[3]),
+          jurusan:         String(r[4]),
+          sumber:          String(r[5]),
+          status:          String(r[7]),
+          pic:             String(r[8]),
+          prioritas:       String(r[9] || ''),
+          jadwalFollowup:  Utilities.formatDate(r[10], 'Asia/Jakarta', 'dd/MM/yyyy'),
+          terakhirFollowup:r[11] ? Utilities.formatDate(r[11], 'Asia/Jakarta', 'dd/MM/yyyy HH:mm') : '',
+          jumlahFollowup:  r[12] || 0,
+          catatan:         String(r[13] || '')
+        };
         if (jadwalStr === todayStr) {
-          stats.reminderHariIni.push({
-            id:              String(r[0]),
-            nama:            String(r[1]),
-            noWa:            String(r[2]),
-            asalSekolah:     String(r[3]),
-            jurusan:         String(r[4]),
-            sumber:          String(r[5]),
-            status:          String(r[7]),
-            pic:             String(r[8]),
-            prioritas:       String(r[9] || ''),
-            jadwalFollowup:  r[10] ? Utilities.formatDate(r[10], 'Asia/Jakarta', 'dd/MM/yyyy') : '',
-            terakhirFollowup:r[11] ? Utilities.formatDate(r[11], 'Asia/Jakarta', 'dd/MM/yyyy HH:mm') : '',
-            jumlahFollowup:  r[12] || 0,
-            catatan:         String(r[13] || '')
-          });
+          stats.reminderHariIni.push(calonEntry);
+        } else if (jadwalStr < todayStr && !terminalStatuses.includes(status)) {
+          stats.overdueCalon.push(calonEntry);
         }
       }
     });

@@ -1,0 +1,9 @@
+# Clasp — berisi scriptId, jangan dipush ke repo publik
+.clasp.json
+
+# Node modules (jika ada)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,376 @@
+<!-- ═══════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════ -->
+<div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-100 px-4">
+  <div class="w-full max-w-sm">
+    <div class="mb-6 text-center">
+      <div class="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-3xl bg-brand-600 text-3xl font-bold text-white shadow-soft">C</div>
+      <h1 class="text-2xl font-bold text-slate-900">CRM SPMB</h1>
+      <p class="mt-1 text-sm text-slate-500">SMK Karya Bangsa — Silakan login</p>
+    </div>
+
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div class="space-y-4">
+        <div>
+          <label class="mb-1.5 block text-xs font-semibold text-slate-600">Email</label>
+          <input id="loginEmail" type="email" placeholder="email@sekolah.sch.id"
+            class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"
+            onkeydown="if(event.key==='Enter') document.getElementById('loginPin').focus()" />
+        </div>
+        <div>
+          <label class="mb-1.5 block text-xs font-semibold text-slate-600">PIN</label>
+          <input id="loginPin" type="password" placeholder="••••••" maxlength="20"
+            class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"
+            onkeydown="if(event.key==='Enter') submitLogin()" />
+        </div>
+        <div id="loginError" class="hidden rounded-2xl bg-red-50 p-3 text-sm font-medium text-red-700"></div>
+        <button id="loginBtn" onclick="submitLogin()"
+          class="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white">
+          Masuk
+        </button>
+      </div>
+    </div>
+
+    <p class="mt-4 text-center text-xs text-slate-400">Hubungi administrator jika lupa PIN</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN APP (tersembunyi sampai login berhasil)
+════════════════════════════════════════════════════ -->
+<div id="mainApp" class="hidden">
+  <div class="mx-auto min-h-screen max-w-md bg-slate-50 shadow-soft">
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div class="flex items-center gap-3 px-4 pb-3 pt-4">
+        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white" id="avatarLetter">?</div>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-xs font-medium text-slate-500" id="userEmail">Loading...</p>
+          <h1 class="text-base font-bold text-slate-900" id="pageTitle">Dashboard</h1>
+        </div>
+        <div id="topbarActions" class="flex items-center gap-2"></div>
+        <button onclick="logout()" title="Logout"
+          class="ml-1 flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 hover:bg-slate-100">
+          <span class="text-base">↩</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="safe-pb px-4 pb-24 pt-4">
+      <section id="page-dashboard" class="page space-y-4">
+        <div id="statGrid" class="grid grid-cols-2 gap-3">
+          <div class="col-span-2 rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-soft">Memuat...</div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-900">Reminder Followup Hari Ini</h2>
+            <span id="reminderCountChip" class="hidden rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700"></span>
+          </div>
+          <div id="reminderList" class="space-y-3 text-sm text-slate-500">Memuat...</div>
+        </div>
+
+        <div class="rounded-3xl border border-red-200 bg-white p-4 shadow-soft">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-red-700">Calon Overdue</h2>
+            <span id="overdueCountChip" class="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">0</span>
+          </div>
+          <div id="overdueList" class="space-y-3 text-sm text-slate-500">Memuat...</div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Pipeline Status</h2>
+          <div id="pipelineChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Minat Jurusan</h2>
+          <div id="jurusanChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Performa Tim SPMB</h2>
+          <div id="picChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Sumber Info Teratas</h2>
+          <div id="sourceChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Konversi per PIC</h2>
+          <div id="conversionChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Tren Lead 6 Bulan Terakhir</h2>
+          <div id="trendChart" class="space-y-3"></div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Export Laporan</h2>
+          <div class="grid grid-cols-1 gap-3">
+            <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="downloadReport('calon')">Export Data Calon (.csv)</button>
+            <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="downloadReport('followup')">Export Followup (.csv)</button>
+            <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="downloadReport('dashboard')">Export Ringkasan Dashboard (.csv)</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-calon" class="page hidden space-y-4">
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <div class="space-y-3">
+            <input id="searchCalon" type="text" placeholder="Cari nama, WA, sekolah..." oninput="filterCalon()" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+            <div class="grid grid-cols-1 gap-3">
+              <select id="filterStatus" onchange="filterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">Semua Status</option></select>
+              <select id="filterJurusan" onchange="filterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">Semua Jurusan</option></select>
+              <select id="filterPic" onchange="filterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">Semua PIC</option></select>
+              <select id="filterLifecycle" onchange="loadCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+                <option value="active">Data Aktif</option>
+                <option value="archived">Arsip</option>
+                <option value="all">Semua Data</option>
+              </select>
+              <select id="filterFollowupState" onchange="loadCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+                <option value="">Semua Jadwal FU</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            <button class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="filterCalon()">Refresh Filter</button>
+          </div>
+        </div>
+        <div id="calonCount" class="px-1 text-xs font-medium text-slate-500"></div>
+        <div id="calonList" class="space-y-3"></div>
+      </section>
+
+      <section id="page-followup" class="page hidden space-y-4">
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Cari Calon untuk Log Followup</h2>
+          <input id="searchFU" type="text" placeholder="Cari nama atau nomor WA..." oninput="searchForFU()" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          <div id="fuCalonList" class="mt-4 space-y-3"></div>
+        </div>
+        <div id="fuDetailCard" class="hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <div id="fuDetailContent"></div>
+        </div>
+      </section>
+
+      <section id="page-template" class="page hidden space-y-4">
+        <div class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft">
+          <h2 class="mb-3 text-sm font-semibold text-slate-900">Template Pesan WhatsApp</h2>
+          <div class="space-y-3">
+            <select id="templateCalonSelect" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+              <option value="">Pilih calon untuk personalisasi template</option>
+            </select>
+            <input id="templateDeadlineInput" type="text" placeholder="Opsional: isi deadline / [X]" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+            <p class="text-xs text-slate-500">Placeholder yang didukung: [Nama], [PIC], [Jurusan], [AsalSekolah], [TanggalFollowup], [Deadline], [Status], [Prioritas], [Sumber], [TanggalMasuk], [X]</p>
+          </div>
+          <div id="templateList" class="mt-4 space-y-3"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="fixed bottom-0 left-1/2 z-30 flex w-full max-w-md -translate-x-1/2 border-t border-slate-200 bg-white/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+      <button class="nav-item-mobile flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-brand-600" data-page="dashboard">
+        <span class="text-lg">🏠</span>
+        <span class="text-[11px] font-semibold">Home</span>
+      </button>
+      <button class="nav-item-mobile flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-slate-500" data-page="calon">
+        <span class="text-lg">👥</span>
+        <span class="text-[11px] font-semibold">Calon</span>
+      </button>
+      <button class="nav-item-mobile flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-slate-500" data-page="followup">
+        <span class="text-lg">💬</span>
+        <span class="text-[11px] font-semibold">Followup</span>
+      </button>
+      <button class="nav-item-mobile flex flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-slate-500" data-page="template">
+        <span class="text-lg">📄</span>
+        <span class="text-[11px] font-semibold">Template</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ── Modal Tambah / Edit Calon ───────────────────────── -->
+  <div class="modal-overlay fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm" id="modalTambahCalon">
+    <div class="fade-in fixed inset-x-0 bottom-0 max-h-[92vh] overflow-hidden rounded-t-[2rem] bg-white">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4">
+        <h3 id="modalCalonTitle" class="text-base font-bold text-slate-900">Tambah Calon Baru</h3>
+        <button class="rounded-full p-2 text-slate-500" onclick="closeModal('modalTambahCalon')">✕</button>
+      </div>
+      <div class="max-h-[calc(92vh-132px)] overflow-y-auto px-4 py-4">
+        <div class="space-y-4">
+          <input id="f_id" type="hidden" />
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Nama Lengkap *</label>
+            <input id="f_nama" type="text" placeholder="Nama lengkap calon" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">No WhatsApp *</label>
+            <input id="f_noWa" type="text" placeholder="08xxxxxxxxxx" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Asal Sekolah *</label>
+            <input id="f_asalSekolah" type="text" placeholder="SMP / MTs asal" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Jurusan Minat *</label>
+            <select id="f_jurusan" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Sumber Info</label>
+            <select id="f_sumber" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Status</label>
+            <select id="f_status" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">PIC *</label>
+            <select id="f_pic" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Prioritas</label>
+            <select id="f_prioritas" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Jadwal Followup Pertama</label>
+            <input id="f_jadwal" type="date" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Catatan</label>
+            <textarea id="f_catatan" rows="4" placeholder="Catatan awal..." class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-4">
+        <div class="flex gap-3">
+          <button class="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="closeModal('modalTambahCalon')">Batal</button>
+          <button id="modalCalonSubmitBtn" class="btn-submit-tambah flex-1 rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white" onclick="submitTambahCalon()">Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Log Followup ──────────────────────────────── -->
+  <div class="modal-overlay fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm" id="modalLogFU">
+    <div class="fade-in fixed inset-x-0 bottom-0 max-h-[92vh] overflow-hidden rounded-t-[2rem] bg-white">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4">
+        <h3 class="text-base font-bold text-slate-900">Log Followup WhatsApp</h3>
+        <button class="rounded-full p-2 text-slate-500" onclick="closeModal('modalLogFU')">✕</button>
+      </div>
+      <div class="max-h-[calc(92vh-132px)] overflow-y-auto px-4 py-4">
+        <div id="fuCalonInfo" class="mb-4 rounded-2xl bg-slate-100 p-3 text-sm text-slate-700"></div>
+        <div class="space-y-4">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Arah Percakapan *</label>
+            <select id="fu_arah" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">PIC *</label>
+            <select id="fu_pic" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Pilih --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Isi Percakapan *</label>
+            <textarea id="fu_isi" rows="6" placeholder="Paste percakapan di sini..." class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"></textarea>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Hasil / Kesimpulan</label>
+            <textarea id="fu_hasil" rows="3" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"></textarea>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Next Action</label>
+            <input id="fu_nextAction" type="text" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Update Status</label>
+            <select id="fu_status" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"><option value="">-- Tidak diubah --</option></select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Jadwal Followup Berikutnya</label>
+            <input id="fu_jadwal" type="date" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+        </div>
+      </div>
+      <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-4">
+        <div class="flex gap-3">
+          <button class="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="closeModal('modalLogFU')">Batal</button>
+          <button class="btn-submit-log flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white" onclick="submitLogFU()">Simpan Log</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Detail Calon (FIXED) ──────────────────────── -->
+  <div class="modal-overlay fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm" id="modalDetail">
+    <div class="fade-in fixed inset-x-0 bottom-0 max-h-[96vh] overflow-hidden rounded-t-[2rem] bg-white">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4">
+        <h3 class="text-base font-bold text-slate-900">Detail Calon</h3>
+        <button class="rounded-full p-2 text-slate-500" onclick="closeModal('modalDetail')">✕</button>
+      </div>
+
+      <div id="modalDetailBody" class="max-h-[calc(96vh-170px)] overflow-y-auto px-4 py-4 pb-32 text-sm text-slate-600">
+        Memuat...
+      </div>
+
+      <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-4 shadow-[0_-6px_20px_rgba(15,23,42,0.08)]">
+        <div class="grid grid-cols-2 gap-3">
+          <button id="detailEditBtn" class="rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white" onclick="openEditFromDetail()">Edit</button>
+          <button id="detailRescheduleBtn" class="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white" onclick="promptRescheduleFromDetail()">Reschedule</button>
+          <button id="detailLogBtn" class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white" onclick="openLogFUFromDetail()">+ Log FU</button>
+          <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="closeModal('modalDetail')">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Reschedule (BARU) ─────────────────────────── -->
+  <div class="modal-overlay fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm" id="modalReschedule">
+    <div class="fade-in fixed inset-x-0 bottom-0 max-h-[70vh] overflow-hidden rounded-t-[2rem] bg-white">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4">
+        <h3 class="text-base font-bold text-slate-900">Reschedule Followup</h3>
+        <button class="rounded-full p-2 text-slate-500" onclick="closeModal('modalReschedule')">✕</button>
+      </div>
+
+      <div class="px-4 py-4">
+        <div class="space-y-4">
+          <div>
+            <label class="mb-1.5 block text-xs font-semibold text-slate-600">Jadwal Followup Baru</label>
+            <input id="rescheduleDateInput" type="date" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+          </div>
+          <div class="rounded-2xl bg-amber-50 p-3 text-xs text-amber-800">
+            Pilih tanggal followup baru untuk calon yang dipilih.
+          </div>
+        </div>
+      </div>
+
+      <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-4">
+        <div class="flex gap-3">
+          <button class="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="closeModal('modalReschedule')">Batal</button>
+          <button class="flex-1 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white" onclick="submitRescheduleCalon()">Simpan Jadwal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal Import CSV ────────────────────────────────── -->
+  <div class="modal-overlay fixed inset-0 z-40 hidden bg-slate-950/40 backdrop-blur-sm" id="modalImportCsv">
+    <div class="fade-in fixed inset-x-0 bottom-0 max-h-[92vh] overflow-hidden rounded-t-[2rem] bg-white">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4">
+        <h3 class="text-base font-bold text-slate-900">Import Calon dari CSV</h3>
+        <button class="rounded-full p-2 text-slate-500" onclick="closeModal('modalImportCsv')">✕</button>
+      </div>
+      <div class="max-h-[calc(92vh-132px)] overflow-y-auto px-4 py-4 space-y-4">
+        <div class="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">Header yang didukung: nama, no_wa, asal_sekolah, jurusan, sumber, status, pic, prioritas, jadwal_followup, catatan.</div>
+        <input type="file" accept=".csv,text/csv" onchange="handleImportFile(this)" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+        <textarea id="importCsvText" rows="10" placeholder="Tempel isi CSV di sini..." class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"></textarea>
+        <pre id="importResultBox" class="hidden whitespace-pre-wrap rounded-2xl bg-slate-900 p-3 text-xs text-white"></pre>
+      </div>
+      <div class="sticky bottom-0 border-t border-slate-200 bg-white px-4 py-4">
+        <div class="flex gap-3">
+          <button class="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="closeModal('modalImportCsv')">Tutup</button>
+          <button id="importCsvSubmitBtn" class="flex-1 rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white" onclick="submitImportCsv()">Import</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="pointer-events-none fixed left-1/2 top-4 z-[60] hidden w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-lg"></div>

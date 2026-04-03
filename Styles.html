@@ -1,0 +1,36 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>CRM SPMB Mobile</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        boxShadow: {
+          soft: '0 4px 20px rgba(15, 23, 42, 0.08)',
+        },
+        colors: {
+          brand: {
+            50: '#eff6ff',
+            100: '#dbeafe',
+            500: '#3b82f6',
+            600: '#2563eb',
+            700: '#1d4ed8'
+          }
+        }
+      }
+    }
+  };
+</script>
+<style>
+  [x-cloak] { display: none !important; }
+  html, body { height: 100%; }
+  body { -webkit-tap-highlight-color: transparent; }
+  .safe-pb { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+  .safe-bottom { bottom: env(safe-area-inset-bottom); }
+  .fade-in { animation: fadeIn .18s ease-out; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>

@@ -1,223 +1,111 @@
-# 📋 CRM SPMB — SMK Karya Bangsa
+# CRM SPMB — Milestone 4
 
-> Sistem CRM (Customer Relationship Management) berbasis Google Apps Script untuk manajemen dan followup calon siswa baru dalam proses **Seleksi Penerimaan Murid Baru (SPMB)**.
+Implementasi milestone 4 di atas milestone 3, fokus pada scale-up: import CSV, role-based access yang lebih tegas, dan hardening dasar.
 
-**Dibuat oleh:** Sukardi  
-**Institusi:** SMK Karya Bangsa, Sintang, Kalimantan Barat  
-**Platform:** Google Sheets + Google Apps Script (Web App)  
-**Lisensi:** Internal / Sekolah
+## Yang dibawa dari milestone sebelumnya
+- refactor struktur
+- ID generator aman multi-user
+- validasi server-side
+- audit field
+- soft delete / arsip + restore
+- edit calon
+- overdue filter
+- reschedule followup
+- reminder email harian
+- template pintar
+- export laporan CSV
+- dashboard lanjutan
 
----
+## Fitur baru Milestone 4
 
-## 🎯 Latar Belakang
+### 1) Import CSV
+- import calon dari file `.csv` atau paste isi CSV ke modal import
+- validasi per baris saat import
+- dukungan header fleksibel:
+  - `nama`
+  - `nama_lengkap`
+  - `no_wa`
+  - `wa`
+  - `whatsapp`
+  - `asal_sekolah`
+  - `jurusan`
+  - `sumber`
+  - `status`
+  - `pic`
+  - `prioritas`
+  - `jadwal_followup`
+  - `catatan`
+- default skip duplikat aktif berdasarkan kombinasi **nama + no WA**
+- hasil import mengembalikan ringkasan `imported / skipped / errors`
 
-Tim SPMB SMK Karya Bangsa melakukan followup calon siswa melalui WhatsApp secara manual. Sebelumnya tidak ada sistem terpusat untuk:
-- Menyimpan data calon siswa
-- Mencatat riwayat percakapan WA
-- Memantau status pipeline per calon
-- Mengingatkan jadwal followup
-- Melihat performa tim SPMB
+### 2) Role-based access penuh
+Role sekarang dibedakan lebih tegas:
 
-CRM ini dibangun **tanpa API WhatsApp** — percakapan WA cukup di-copy-paste ke sistem, sehingga aman dari risiko banned dan tidak membutuhkan biaya tambahan.
+#### ADMIN
+- lihat semua data aktif dan arsip
+- tambah, edit, arsip, restore, reschedule
+- import CSV
+- export laporan
+- kirim reminder
 
----
+#### PIC
+- hanya melihat calon yang `PIC`-nya sama dengan **Nama** user pada sheet `Users`
+- hanya bisa edit / arsip / reschedule / log followup untuk calon miliknya sendiri
+- bisa export laporan sesuai scope miliknya
+- tidak bisa restore arsip
+- tidak bisa import CSV
 
-## 🏗️ Arsitektur Sistem
+#### VIEWER
+- read only
+- hanya melihat data aktif
+- tidak bisa edit, arsip, restore, import, export, atau kirim reminder
 
-```
-┌─────────────────────────────────────────────────────┐
-│                  Google Apps Script                  │
-│                                                      │
-│   WebApp.gs   ←→   Google Sheets (Database)         │
-│   Helper.gs                                          │
-│   Code.gs                                            │
-│                                                      │
-│   Index.html  ←→   Browser (Web App UI)              │
-└─────────────────────────────────────────────────────┘
-```
+> Penting: untuk role `PIC`, kolom **Nama** di sheet `Users` harus sama dengan nilai **PIC** pada data calon. Contoh: jika data calon memakai `Tim SPMB 1`, maka user PIC terkait juga harus punya `Nama = Tim SPMB 1`.
 
-### Stack Teknologi
+### 3) Hardening dasar
+- sanitasi input text untuk mencegah isi HTML/tag berlebih
+- pembatasan panjang field
+- parsing tanggal lebih aman (`YYYY-MM-DD` dan `DD/MM/YYYY`)
+- validasi ukuran import CSV
+- validasi jumlah baris import
+- pembatasan aksi UI berdasarkan izin per-record
 
-| Komponen | Teknologi |
-|---|---|
-| Database | Google Sheets |
-| Backend | Google Apps Script |
-| Frontend | HTML + CSS + Vanilla JS (Web App) |
-| Auth | Google OAuth (login akun sekolah) |
-| Hosting | Google Apps Script Web App (gratis) |
+## File baru
+- `ImportService.gs`
 
----
+## File utama yang berubah
+- `AuthService.gs`
+- `ConfigService.gs`
+- `CalonService.gs`
+- `FollowUpService.gs`
+- `DashboardService.gs`
+- `ExportService.gs`
+- `Validation.gs`
+- `App.js.html`
+- `AppBody.html`
+- `WebApp.gs`
 
-## 📁 Struktur File
+## Endpoint baru
+- `importCalonCsv(csvText, options)`
 
-```
-CRM-SPMB/
-├── Code.js          # Setup sheet otomatis
-├── Helper.js        # Fungsi helper & sample data
-├── WebApp.js        # Server-side functions (CRUD)
-├── Index.html       # UI Web App (SPA)
-└── appsscript.json  # Konfigurasi Apps Script
-```
+## Cara pakai
+1. Push folder ini ke Apps Script.
+2. Untuk spreadsheet lama, jalankan `migrateMilestone4Schema()`.
+3. Pastikan sheet `Users` sudah terisi:
+   - `Email | Nama | Role | Aktif`
+4. Pastikan nama user role `PIC` cocok dengan nilai PIC pada data calon.
+5. Deploy ulang Web App.
+6. Untuk import, buka halaman **Data Calon** lalu klik **Import CSV** (hanya untuk ADMIN).
 
-> **Catatan:** File `.clasp.json` berisi `scriptId` dan **tidak disertakan** di repo (ada di `.gitignore`).
-
-### Struktur Google Sheets
-
-| Sheet | Warna Tab | Fungsi |
-|---|---|---|
-| `DataCalon` | 🔵 Biru | Master data semua calon siswa |
-| `FollowUp` | 🟢 Hijau | Log riwayat percakapan WA |
-| `TemplateWA` | 🟢 WhatsApp Green | Template pesan siap pakai |
-| `Dashboard` | 🟡 Kuning | Rekap statistik (formula) |
-| `Referensi` | ⚫ Abu | Data dropdown (tersembunyi) |
-
----
-
-## ⚙️ Fitur Web App
-
-### 📊 Dashboard
-- Statistik total calon, konversi, aktif diproses
-- **Reminder followup hari ini** — siapa yang harus dihubungi
-- Pipeline chart per status
-- Distribusi minat jurusan
-- Performa per PIC
-
-### 👥 Data Calon
-- Tabel semua calon dengan filter (status, jurusan, PIC, search)
-- Tombol langsung ke WhatsApp
-- Detail calon + riwayat percakapan lengkap
-- Form tambah calon baru
-- **Hapus calon** dengan konfirmasi
-
-### 💬 Log Followup WA
-- Cari calon → lihat riwayat percakapan
-- Form input log baru (copy-paste dari WA)
-- Update status calon sekaligus
-- Set jadwal followup berikutnya
-
-### 📱 Template WA
-- Daftar template pesan diambil langsung dari sheet `TemplateWA`
-- Tombol **Salin** ke clipboard — tinggal paste ke WA
-- Template dapat diedit di sheet tanpa sentuh kode
-
----
-
-## 🚀 Cara Setup
-
-### Prasyarat
-- Akun Google (akun sekolah `@karyabangsa.sch.id`)
-- Akses ke Google Sheets dan Apps Script
-
-### Langkah 1 — Setup Google Sheets
-1. Buka [Google Sheets](https://sheets.google.com) → buat spreadsheet baru
-2. Klik **Extensions → Apps Script**
-3. Hapus kode default
-4. Buat file-file berikut dan paste isinya masing-masing:
-   - `Code.gs` ← isi dari `Code.js`
-   - `Helper.gs` ← isi dari `Helper.js`
-   - `WebApp.gs` ← isi dari `WebApp.js`
-   - `Index.html` ← isi dari `Index.html`
-5. Pilih fungsi `setupCRMSPMB` di dropdown → klik **▶ Run**
-6. Izinkan permission yang diminta
-7. Semua sheet akan terbuat otomatis ✅
-
-### Langkah 2 — Deploy Web App
-1. Klik **Deploy → New deployment**
-2. Pilih type: **Web app**
-3. Konfigurasi:
-   - Execute as: **Me**
-   - Who has access: **Anyone with Google account**
-4. Klik **Deploy** → salin URL Web App
-5. Bagikan URL ke seluruh tim SPMB ✅
-
-### Langkah 3 — Kustomisasi
-Buka sheet `Referensi` (unhide dulu) → sesuaikan:
-- **PIC_SPMB** — nama-nama anggota tim SPMB
-- **JURUSAN** — jurusan yang tersedia di sekolah
-- **SUMBER_INFO** — sumber informasi yang relevan
-
----
-
-## 📌 Deploy Ulang Setelah Update Kode
-
-> ⚠️ Setiap kali ada perubahan kode, wajib buat versi baru.
-
-1. **Deploy → Manage deployments**
-2. Klik ✏️ **Edit** pada deployment aktif
-3. Version: pilih **"New version"**
-4. Klik **Deploy**
-
-URL tetap sama — tidak perlu bagikan ulang ke tim.
-
----
-
-## 🔄 Alur Kerja Tim SPMB
-
-```
-1. Calon baru masuk (pameran/medsos/referral)
-         ↓
-2. Input ke Web App → form Tambah Calon
-         ↓
-3. Tim kirim WA menggunakan Template WA
-         ↓
-4. Copy pesan WA yang dikirim → Log Followup (Outbound)
-         ↓
-5. Calon membalas WA → copy balasan → Log Followup (Inbound)
-         ↓
-6. Update status + set jadwal followup berikutnya
-         ↓
-7. Sistem tampilkan reminder di Dashboard keesokan harinya
-         ↓
-8. Ulangi langkah 3–7 hingga Sudah Daftar / Tidak Jadi
+## Contoh CSV minimal
+```csv
+nama,no_wa,asal_sekolah,jurusan,sumber,status,pic,prioritas,jadwal_followup,catatan
+Budi Santoso,081234567890,SMP N 1 Sintang,RPL,Pameran,Baru,Tim SPMB 1,Tinggi,2026-04-05,Lead dari pameran
+Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,Sedang,2026-04-06,Followup kedua
 ```
 
----
-
-## 🗓️ Roadmap
-
-### ✅ Selesai (v1.0)
-- [x] Setup otomatis Google Sheets (5 sheet + dropdown + conditional formatting)
-- [x] Web App UI dengan sidebar navigasi
-- [x] Dashboard statistik + reminder followup hari ini
-- [x] CRUD data calon siswa (tambah & hapus)
-- [x] Log followup WA (copy-paste, tanpa API)
-- [x] Template WA diambil langsung dari sheet
-- [x] Filter & pencarian data calon
-- [x] Detail calon + riwayat percakapan lengkap
-- [x] Multi-user dengan login Google
-
-### 🔜 v1.1 — Notifikasi & Reminder
-- [ ] Email harian otomatis via `MailApp`
-- [ ] Time-based trigger jam 07.00 WIB
-- [ ] Tandai calon overdue
-
-### 🔜 v1.2 — Manajemen Calon
-- [ ] Edit data calon dari Web App
-- [ ] Soft delete / arsip calon
-- [ ] Import data massal dari CSV/Excel
-- [ ] Export laporan ke Excel
-
-### 🔜 v1.3 — Analitik
-- [ ] Grafik konversi per bulan
-- [ ] Laporan performa per PIC
-- [ ] Analisis sumber info terbaik
-
----
-
-## 🐛 Troubleshooting
-
-| Masalah | Solusi |
-|---|---|
-| Spinner loading terus | Cek browser console (F12), pastikan deploy sudah **New Version** |
-| Formula Dashboard `#ERROR!` | Jalankan fungsi `fixDashboard()` di Apps Script Editor |
-| `Range not found` di setDropdown | Gunakan signature `(sh, row, col, numRows, sheetName, rangeA1)` |
-| No WA tidak bisa `.replace()` | Cast ke String: `String(r[2] \|\| '')` di server sebelum dikirim |
-| Template WA tidak muncul | Pastikan sheet `TemplateWA` ada isinya; fungsi `getTemplateWA()` membaca dari sheet |
-
----
-
-## 👤 Kontak
-
-**Sukardi**  
-IT Administrator — SMK Karya Bangsa Sintang  
-📧 sukardi@karyabangsa.sch.id
+## Catatan hardening
+- trigger reminder harian sekarang memakai `DashboardService.getStats(true)` agar tetap jalan saat dipanggil oleh trigger
+- restore arsip dibatasi ke `ADMIN`
+- export dibatasi ke `ADMIN` dan `PIC`
+- PIC tidak dapat memindahkan calon ke PIC lain saat edit

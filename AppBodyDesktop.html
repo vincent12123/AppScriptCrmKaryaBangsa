@@ -1,0 +1,376 @@
+<div id="desktopLoginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-100 px-6">
+  <div class="grid w-full max-w-5xl grid-cols-2 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-soft">
+    <div class="flex flex-col justify-between bg-gradient-to-br from-blue-600 to-blue-700 p-10 text-white">
+      <div>
+        <div class="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-white/20 text-3xl font-bold">
+          C
+        </div>
+        <h1 class="text-3xl font-bold">CRM SPMB</h1>
+        <p class="mt-2 text-sm text-blue-100">SMK Karya Bangsa — Versi Desktop</p>
+      </div>
+
+      <div class="space-y-4">
+        <div class="rounded-3xl bg-white/10 p-4">
+          <div class="text-sm font-semibold">Kelola calon lebih nyaman di laptop</div>
+          <div class="mt-1 text-sm text-blue-100">Tabel lebih lebar, filter lebih lengkap, dan area kerja lebih luas.</div>
+        </div>
+        <div class="rounded-3xl bg-white/10 p-4">
+          <div class="text-sm font-semibold">Tetap memakai backend yang sama</div>
+          <div class="mt-1 text-sm text-blue-100">Login PIN, dashboard, data calon, follow-up, export, dan template tetap satu sistem.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-center p-10">
+      <div class="w-full max-w-md">
+        <div class="mb-6">
+          <h2 class="text-2xl font-bold text-slate-900">Masuk ke CRM</h2>
+          <p class="mt-1 text-sm text-slate-500">Gunakan email dan PIN yang terdaftar di sheet Users</p>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">Email</label>
+            <input id="desktopLoginEmail" type="email" placeholder="email@sekolah.sch.id"
+              class="w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+              onkeydown="if(event.key==='Enter') document.getElementById('desktopLoginPin').focus()" />
+          </div>
+
+          <div>
+            <label class="mb-1.5 block text-sm font-semibold text-slate-700">PIN</label>
+            <input id="desktopLoginPin" type="password" maxlength="20" placeholder="••••••"
+              class="w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+              onkeydown="if(event.key==='Enter') desktopSubmitLogin()" />
+          </div>
+
+          <div id="desktopLoginError" class="hidden rounded-2xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700"></div>
+
+          <button id="desktopLoginBtn" onclick="desktopSubmitLogin()"
+            class="w-full rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white">
+            Masuk
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="desktopApp" class="hidden min-h-screen bg-slate-100">
+  <div class="flex min-h-screen">
+    <aside class="w-72 border-r border-slate-200 bg-white p-5">
+      <div class="mb-8 flex items-center gap-3">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-xl font-bold text-white shadow-soft">
+          C
+        </div>
+        <div>
+          <div class="text-xs font-medium uppercase tracking-wide text-slate-500">CRM SPMB</div>
+          <h1 class="text-lg font-bold text-slate-900">SMK Karya Bangsa</h1>
+        </div>
+      </div>
+
+      <nav class="space-y-2">
+        <button class="desktop-nav-item w-full rounded-2xl bg-brand-50 px-4 py-3 text-left text-sm font-semibold text-brand-700" data-page="dashboard">
+          Dashboard
+        </button>
+        <button class="desktop-nav-item w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50" data-page="calon">
+          Data Calon
+        </button>
+        <button class="desktop-nav-item w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50" data-page="followup">
+          Follow-up
+        </button>
+        <button class="desktop-nav-item w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50" data-page="template">
+          Template WA
+        </button>
+      </nav>
+
+      <div class="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">User aktif</div>
+        <div id="desktopUserName" class="mt-2 text-sm font-bold text-slate-900">Loading...</div>
+        <div id="desktopUserMeta" class="text-xs text-slate-500">Loading...</div>
+        <button onclick="desktopLogout()" class="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">
+          Logout
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 p-6">
+      <header class="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-soft">
+        <div>
+          <div class="text-sm text-slate-500">CRM SPMB Desktop</div>
+          <h2 id="desktopPageTitle" class="text-2xl font-bold text-slate-900">Dashboard</h2>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <input id="desktopGlobalSearch" type="text" placeholder="Cari calon, WA, sekolah..."
+            class="w-80 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
+          <div id="desktopTopbarActions" class="flex items-center gap-3"></div>
+        </div>
+      </header>
+
+      <section id="desktop-page-dashboard" class="desktop-page space-y-6">
+        <div id="desktopStatGrid" class="grid grid-cols-4 gap-4">
+          <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+            <div class="text-sm font-semibold text-slate-600">Memuat...</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-12 gap-6">
+          <div class="col-span-8 space-y-6">
+            <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+              <div class="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 class="text-lg font-bold text-slate-900">Pipeline Status</h3>
+                  <p class="text-sm text-slate-500">Ringkasan progres calon siswa</p>
+                </div>
+              </div>
+              <div id="desktopPipelineChart" class="space-y-4"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+              <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+                <h3 class="text-lg font-bold text-slate-900">Minat Jurusan</h3>
+                <div id="desktopJurusanChart" class="mt-4 space-y-4"></div>
+              </div>
+
+              <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+                <h3 class="text-lg font-bold text-slate-900">Konversi per PIC</h3>
+                <div id="desktopConversionChart" class="mt-4 space-y-3"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-4 space-y-6">
+            <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-slate-900">Reminder Hari Ini</h3>
+                <span id="desktopReminderCountChip" class="hidden rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700"></span>
+              </div>
+              <div id="desktopReminderList" class="space-y-3 text-sm text-slate-500">Memuat...</div>
+            </div>
+
+            <div class="rounded-3xl border border-red-200 bg-white p-5 shadow-soft">
+              <div class="mb-3 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-red-700">Calon Overdue</h3>
+                <span id="desktopOverdueCountChip" class="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">0</span>
+              </div>
+              <div id="desktopOverdueList" class="space-y-3 text-sm text-slate-500">Memuat...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="desktop-page-calon" class="desktop-page hidden space-y-6">
+        <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+          <div class="grid grid-cols-5 gap-4">
+            <input id="desktopSearchCalon" type="text" placeholder="Cari nama, WA, sekolah..."
+              oninput="desktopFilterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+            <select id="desktopFilterStatus" onchange="desktopFilterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+              <option value="">Semua Status</option>
+            </select>
+            <select id="desktopFilterJurusan" onchange="desktopFilterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+              <option value="">Semua Jurusan</option>
+            </select>
+            <select id="desktopFilterPic" onchange="desktopFilterCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+              <option value="">Semua PIC</option>
+            </select>
+            <select id="desktopFilterLifecycle" onchange="desktopLoadCalon()" class="rounded-2xl border-slate-200 bg-slate-50 text-sm">
+              <option value="active">Data Aktif</option>
+              <option value="archived">Arsip</option>
+              <option value="all">Semua Data</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="rounded-3xl border border-slate-200 bg-white shadow-soft overflow-hidden">
+          <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Data Calon</h3>
+              <p id="desktopCalonCount" class="text-sm text-slate-500">Memuat...</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-slate-600">
+                <tr>
+                  <th class="px-6 py-3 text-left font-semibold">Nama</th>
+                  <th class="px-6 py-3 text-left font-semibold">Asal Sekolah</th>
+                  <th class="px-6 py-3 text-left font-semibold">Jurusan</th>
+                  <th class="px-6 py-3 text-left font-semibold">Status</th>
+                  <th class="px-6 py-3 text-left font-semibold">PIC</th>
+                  <th class="px-6 py-3 text-left font-semibold">Jadwal FU</th>
+                  <th class="px-6 py-3 text-left font-semibold">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="desktopCalonTableBody">
+                <tr>
+                  <td colspan="7" class="px-6 py-6 text-center text-slate-500">Memuat data...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="desktop-page-followup" class="desktop-page hidden">
+        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Follow-up Desktop</h3>
+              <p class="mt-1 text-sm text-slate-500">Cari calon dan lihat riwayat follow-up.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-6">
+            <div class="col-span-4">
+              <input id="desktopSearchFU" type="text" placeholder="Cari nama atau nomor WA..."
+                oninput="desktopSearchForFU()" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+              <div id="desktopFuCalonList" class="mt-4 space-y-3"></div>
+            </div>
+
+            <div class="col-span-8">
+              <div id="desktopFuDetailCard" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+                Pilih calon di sebelah kiri untuk melihat riwayat follow-up.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="desktop-page-template" class="desktop-page hidden">
+        <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Template WA Desktop</h3>
+              <p class="mt-1 text-sm text-slate-500">Pilih calon lalu preview template dengan layar lebih lebar.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-6">
+            <div class="col-span-4 space-y-4">
+              <select id="desktopTemplateCalonSelect" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+                <option value="">Pilih calon untuk personalisasi template</option>
+              </select>
+              <input id="desktopTemplateDeadlineInput" type="text" placeholder="Opsional: isi deadline / [X]"
+                class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+              <div class="rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
+                Placeholder yang didukung: [Nama], [PIC], [Jurusan], [AsalSekolah], [TanggalFollowup], [Deadline], [Status], [Prioritas], [Sumber], [TanggalMasuk], [X]
+              </div>
+            </div>
+
+            <div class="col-span-8">
+              <div id="desktopTemplateList" class="space-y-4"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- Desktop Detail Modal -->
+<div id="desktopDetailModal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
+  <div class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-soft">
+    <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <h3 class="text-lg font-bold text-slate-900">Detail Calon</h3>
+      <button onclick="desktopCloseDetailModal()" class="rounded-full p-2 text-slate-500 hover:bg-slate-100">✕</button>
+    </div>
+
+    <div id="desktopDetailBody" class="flex-1 overflow-y-auto px-6 py-6 text-sm text-slate-600">
+      Memuat...
+    </div>
+
+    <div class="border-t border-slate-200 bg-white px-6 py-4">
+      <div class="flex justify-end gap-3">
+        <button id="desktopDetailEditBtn" class="rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white" onclick="desktopOpenEditFromDetail()">Edit</button>
+        <button id="desktopDetailLogBtn" class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white" onclick="desktopOpenLogFromDetail()">+ Log FU</button>
+        <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="desktopCloseDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Desktop Edit Modal -->
+<div id="desktopEditModal" class="fixed inset-0 z-[81] hidden items-center justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
+  <div class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-soft">
+    <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <h3 id="desktopEditTitle" class="text-lg font-bold text-slate-900">Edit Data Calon</h3>
+      <button onclick="desktopCloseEditModal()" class="rounded-full p-2 text-slate-500 hover:bg-slate-100">✕</button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-6 py-6">
+      <div class="grid grid-cols-2 gap-4">
+        <input id="desktop_f_id" type="hidden" />
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Nama Lengkap *</label>
+          <input id="desktop_f_nama" type="text" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">No WhatsApp *</label>
+          <input id="desktop_f_noWa" type="text" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Asal Sekolah *</label>
+          <input id="desktop_f_asalSekolah" type="text" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Jurusan *</label>
+          <select id="desktop_f_jurusan" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Sumber Info</label>
+          <select id="desktop_f_sumber" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Status</label>
+          <select id="desktop_f_status" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">PIC *</label>
+          <select id="desktop_f_pic" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Prioritas</label>
+          <select id="desktop_f_prioritas" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm">
+            <option value="">-- Pilih --</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Jadwal Follow-up</label>
+          <input id="desktop_f_jadwal" type="date" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm" />
+        </div>
+
+        <div class="col-span-2">
+          <label class="mb-1.5 block text-sm font-semibold text-slate-700">Catatan</label>
+          <textarea id="desktop_f_catatan" rows="4" class="w-full rounded-2xl border-slate-200 bg-slate-50 text-sm"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="border-t border-slate-200 bg-white px-6 py-4">
+      <div class="flex justify-end gap-3">
+        <button class="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700" onclick="desktopCloseEditModal()">Batal</button>
+        <button id="desktopEditSubmitBtn" class="rounded-2xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white" onclick="desktopSubmitEditCalon()">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="desktopToast" class="pointer-events-none fixed right-6 top-6 z-[90] hidden max-w-sm rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-lg"></div>

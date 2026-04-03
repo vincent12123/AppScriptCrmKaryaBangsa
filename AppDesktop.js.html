@@ -1,0 +1,904 @@
+<script>
+  var DESKTOP_TOKEN = '';
+  var DESKTOP_CFG = {};
+  var DESKTOP_ALL_CALON = [];
+  var DESKTOP_FILTERED_CALON = [];
+  var DESKTOP_REMINDER_DATA = [];
+  var DESKTOP_TEMPLATE_DATA = [];
+  var DESKTOP_TEMPLATE_CALON_DATA = [];
+  var DESKTOP_FU_SEARCH_RESULTS = [];
+  var DESKTOP_SELECTED_CALON = null;
+
+  function desktopTok() { return DESKTOP_TOKEN; }
+
+  function desktopSaveToken(t) {
+    DESKTOP_TOKEN = t || '';
+    try { sessionStorage.setItem('crm_token', DESKTOP_TOKEN); } catch (e) {}
+  }
+
+  function desktopClearToken() {
+    DESKTOP_TOKEN = '';
+    try { sessionStorage.removeItem('crm_token'); } catch (e) {}
+  }
+
+  function desktopLoadTokenFromStorage() {
+    try { return sessionStorage.getItem('crm_token') || ''; } catch (e) { return ''; }
+  }
+
+  function desktopShowLogin() {
+    document.getElementById('desktopLoginScreen').classList.remove('hidden');
+    document.getElementById('desktopApp').classList.add('hidden');
+  }
+
+  function desktopShowApp() {
+    document.getElementById('desktopLoginScreen').classList.add('hidden');
+    document.getElementById('desktopApp').classList.remove('hidden');
+  }
+
+  function desktopShowToast(msg, duration) {
+    duration = duration || 2500;
+    var t = document.getElementById('desktopToast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(function() {
+      t.classList.add('hidden');
+    }, duration);
+  }
+
+  function desktopUnwrapResponse(res) {
+    if (!res || typeof res !== 'object' || !Object.prototype.hasOwnProperty.call(res, 'ok')) {
+      return res;
+    }
+    if (!res.ok) {
+      if (res.message && res.message.indexOf('login ulang') !== -1) {
+        desktopClearToken();
+        desktopShowLogin();
+        desktopShowToast('⚠️ Sesi habis. Silakan login kembali.');
+        throw new Error('SESSION_EXPIRED');
+      }
+      throw new Error(res.message || 'Server error');
+    }
+    return res.data;
+  }
+
+  function desktopSubmitLogin() {
+    var email = (document.getElementById('desktopLoginEmail').value || '').trim();
+    var pin = (document.getElementById('desktopLoginPin').value || '').trim();
+    var errEl = document.getElementById('desktopLoginError');
+    var btn = document.getElementById('desktopLoginBtn');
+
+    errEl.classList.add('hidden');
+
+    if (!email || !pin) {
+      errEl.textContent = 'Email dan PIN wajib diisi.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Memverifikasi...';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+
+        if (!res || !res.ok) {
+          errEl.textContent = (res && res.message) || 'Login gagal.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+
+        desktopSaveToken(res.data.token);
+        desktopInitApp();
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Masuk';
+        errEl.textContent = err.message || 'Terjadi kesalahan saat login.';
+        errEl.classList.remove('hidden');
+      })
+      .loginWithPin({ email: email, pin: pin });
+  }
+
+  function desktopLogout() {
+    var oldToken = DESKTOP_TOKEN;
+    desktopClearToken();
+    try {
+      google.script.run.logoutSession(oldToken);
+    } catch (e) {}
+    desktopShowLogin();
+  }
+
+  function desktopInitApp() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.ok) {
+          desktopClearToken();
+          desktopShowLogin();
+          return;
+        }
+
+        DESKTOP_CFG = res.data;
+        desktopShowApp();
+        desktopApplyUser(res.data.user);
+        desktopPopulateDropdowns(res.data);
+        desktopBindNav();
+        desktopSwitchPage('dashboard');
+        desktopLoadDashboard();
+        desktopLoadCalon();
+        desktopLoadTemplates();
+      })
+      .withFailureHandler(function() {
+        desktopClearToken();
+        desktopShowLogin();
+      })
+      .getConfig(desktopTok());
+  }
+
+  function desktopApplyUser(user) {
+    document.getElementById('desktopUserName').textContent = user.name || '-';
+    document.getElementById('desktopUserMeta').textContent = (user.role || 'VIEWER') + ' · ' + (user.email || '-');
+  }
+
+  function desktopBindNav() {
+    document.querySelectorAll('.desktop-nav-item').forEach(function(el) {
+      el.onclick = function() {
+        desktopSwitchPage(el.dataset.page);
+      };
+    });
+  }
+
+  function desktopSwitchPage(page) {
+    document.querySelectorAll('.desktop-page').forEach(function(el) {
+      el.classList.add('hidden');
+    });
+
+    document.getElementById('desktop-page-' + page).classList.remove('hidden');
+
+    document.querySelectorAll('.desktop-nav-item').forEach(function(el) {
+      var active = el.dataset.page === page;
+      el.classList.toggle('bg-brand-50', active);
+      el.classList.toggle('text-brand-700', active);
+      el.classList.toggle('text-slate-700', !active);
+    });
+
+    var titles = {
+      dashboard: 'Dashboard',
+      calon: 'Data Calon',
+      followup: 'Follow-up',
+      template: 'Template WA'
+    };
+
+    document.getElementById('desktopPageTitle').textContent = titles[page] || 'CRM SPMB';
+    desktopUpdateTopbarActions(page);
+
+    if (page === 'followup') desktopRenderFollowupList([]);
+    if (page === 'template') desktopRenderTemplateList();
+  }
+
+  function desktopUpdateTopbarActions(page) {
+    var el = document.getElementById('desktopTopbarActions');
+    if (page === 'dashboard') {
+      var html = '<button class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700" onclick="desktopLoadDashboard()">Refresh</button>';
+      if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canSendReminder) {
+        html += '<button class="rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white" onclick="desktopSendReminderNow()">Kirim Reminder</button>';
+      }
+      el.innerHTML = html;
+    } else if (page === 'calon') {
+      var parts = [];
+      if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canImport) {
+        parts.push('<button class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700">Import CSV</button>');
+      }
+      if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canWrite) {
+        parts.push('<button class="rounded-2xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white" onclick="desktopShowToast(\'Tambah calon desktop bisa memakai modal berikutnya jika dibutuhkan\')">+ Tambah Calon</button>');
+      }
+      el.innerHTML = parts.join('');
+    } else if (page === 'template') {
+      el.innerHTML = '<button class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700" onclick="desktopLoadTemplates()">Refresh Template</button>';
+    } else {
+      el.innerHTML = '';
+    }
+  }
+
+  function desktopPopulateDropdowns(cfg) {
+    desktopFillSelect('desktopFilterStatus', cfg.statuses);
+    desktopFillSelect('desktopFilterJurusan', cfg.jurusans);
+    desktopFillSelect('desktopFilterPic', cfg.pics);
+
+    desktopFillSelect('desktop_f_jurusan', cfg.jurusans);
+    desktopFillSelect('desktop_f_sumber', cfg.sumbers);
+    desktopFillSelect('desktop_f_pic', cfg.pics);
+    desktopFillSelect('desktop_f_prioritas', cfg.prioritas);
+    desktopFillSelect('desktop_f_status', cfg.statuses);
+
+    var lifecycle = document.getElementById('desktopFilterLifecycle');
+    if (lifecycle && !(cfg.permissions && cfg.permissions.canViewArchived)) {
+      lifecycle.value = 'active';
+      Array.prototype.slice.call(lifecycle.options).forEach(function(opt) {
+        if (opt.value === 'archived' || opt.value === 'all') opt.remove();
+      });
+    }
+  }
+
+  function desktopFillSelect(id, items) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    while (sel.options.length > 1) sel.remove(1);
+    (items || []).forEach(function(v) {
+      var o = document.createElement('option');
+      o.value = o.text = v;
+      sel.add(o);
+    });
+  }
+
+  function desktopStatusClass(status) {
+    var map = {
+      'Baru': 'bg-blue-100 text-blue-700',
+      'Dihubungi': 'bg-amber-100 text-amber-700',
+      'Tertarik': 'bg-emerald-100 text-emerald-700',
+      'Proses Daftar': 'bg-purple-100 text-purple-700',
+      'Sudah Daftar': 'bg-cyan-100 text-cyan-700',
+      'Tidak Jadi': 'bg-rose-100 text-rose-700'
+    };
+    return map[status] || 'bg-slate-100 text-slate-700';
+  }
+
+  function desktopPriorityClass(priority) {
+    var map = {
+      'Tinggi': 'bg-rose-100 text-rose-700',
+      'Sedang': 'bg-amber-100 text-amber-700',
+      'Rendah': 'bg-emerald-100 text-emerald-700'
+    };
+    return map[priority] || 'bg-slate-100 text-slate-700';
+  }
+
+  function desktopDirectionClass(direction) {
+    return direction === 'Inbound' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700';
+  }
+
+  function desktopMiniBar(label, value, pct, colorClass) {
+    return '<div class="space-y-1.5">' +
+      '<div class="flex items-center justify-between text-sm"><span class="font-medium text-slate-600">' + label + '</span><span class="font-semibold text-slate-900">' + value + (pct !== null ? ' (' + pct + '%)' : '') + '</span></div>' +
+      '<div class="h-2.5 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full ' + colorClass + '" style="width:' + Math.max(4, pct || 0) + '%"></div></div>' +
+      '</div>';
+  }
+
+  function desktopBadge(text, cls) {
+    return '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ' + cls + '">' + text + '</span>';
+  }
+
+  function desktopLoadDashboard() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        try {
+          desktopRenderDashboard(desktopUnwrapResponse(res));
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        desktopShowToast('❌ ' + err.message);
+      })
+      .getDashboardStats(desktopTok());
+  }
+
+  function desktopRenderDashboard(stats) {
+    var total = stats.total || 0;
+    var sudahDaftar = stats.sudahDaftar || 0;
+    var tidakJadi = stats.tidakJadi || 0;
+    var aktif = total - sudahDaftar - tidakJadi;
+    var overdue = (stats.overdueCalon || []).length;
+
+    document.getElementById('desktopStatGrid').innerHTML = [
+      desktopStatCard('Total Calon', total, 'Terdaftar di sistem'),
+      desktopStatCard('Sudah Daftar', sudahDaftar, 'Konversi berjalan'),
+      desktopStatCard('Aktif Diproses', aktif, 'Masih dalam pipeline'),
+      desktopStatCard('Overdue', overdue, 'Perlu ditindak'),
+    ].join('');
+
+    var totalSafe = total || 1;
+
+    var statusColors = {
+      'Baru': 'bg-blue-500',
+      'Dihubungi': 'bg-amber-500',
+      'Tertarik': 'bg-emerald-500',
+      'Proses Daftar': 'bg-purple-500',
+      'Sudah Daftar': 'bg-cyan-500',
+      'Tidak Jadi': 'bg-rose-500'
+    };
+
+    document.getElementById('desktopPipelineChart').innerHTML =
+      Object.keys(stats.byStatus || {}).map(function(s) {
+        var n = stats.byStatus[s];
+        var pct = Math.round((n / totalSafe) * 100);
+        return desktopMiniBar(s, n, pct, statusColors[s] || 'bg-slate-400');
+      }).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+
+    document.getElementById('desktopJurusanChart').innerHTML =
+      Object.keys(stats.byJurusan || {}).map(function(j) {
+        var n = stats.byJurusan[j];
+        var pct = Math.round((n / totalSafe) * 100);
+        return desktopMiniBar(j, n, pct, 'bg-brand-600');
+      }).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+
+    document.getElementById('desktopConversionChart').innerHTML =
+      (stats.conversionByPic || []).map(function(row) {
+        return '<div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm">' +
+          '<span class="font-medium text-slate-700">' + row.pic + '</span>' +
+          '<span class="font-bold text-slate-900">' + row.konversi + '%</span>' +
+        '</div>';
+      }).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+
+    DESKTOP_REMINDER_DATA = stats.reminderHariIni || [];
+    var chip = document.getElementById('desktopReminderCountChip');
+    if (DESKTOP_REMINDER_DATA.length > 0) {
+      chip.textContent = DESKTOP_REMINDER_DATA.length + ' item';
+      chip.classList.remove('hidden');
+    } else {
+      chip.classList.add('hidden');
+    }
+
+    document.getElementById('desktopReminderList').innerHTML =
+      DESKTOP_REMINDER_DATA.length
+        ? DESKTOP_REMINDER_DATA.map(function(c) {
+            return '<div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">' +
+              '<div class="font-semibold text-slate-900">' + c.nama + '</div>' +
+              '<div class="mt-1 text-xs text-slate-500">' + c.jurusan + ' · ' + (c.pic || '-') + '</div>' +
+              '<div class="mt-2 text-xs text-slate-600">FU: ' + (c.jadwalFollowup || '-') + '</div>' +
+            '</div>';
+          }).join('')
+        : '<div class="rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-700">Tidak ada jadwal follow-up hari ini.</div>';
+
+    var overdueData = stats.overdueCalon || [];
+    document.getElementById('desktopOverdueCountChip').textContent = overdueData.length + ' item';
+    document.getElementById('desktopOverdueList').innerHTML =
+      overdueData.length
+        ? overdueData.map(function(c) {
+            return '<div class="rounded-2xl border border-red-200 bg-red-50 p-3">' +
+              '<div class="font-semibold text-slate-900">' + c.nama + '</div>' +
+              '<div class="mt-1 text-xs text-slate-500">' + c.asalSekolah + ' · ' + c.jurusan + '</div>' +
+              '<div class="mt-2 text-xs font-semibold text-red-700">Jadwal: ' + (c.jadwalFollowup || '-') + '</div>' +
+            '</div>';
+          }).join('')
+        : '<div class="rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-700">Tidak ada calon overdue.</div>';
+  }
+
+  function desktopStatCard(label, value, sub) {
+    return '<div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">' +
+      '<div class="text-sm font-semibold text-slate-600">' + label + '</div>' +
+      '<div class="mt-3 text-3xl font-bold text-slate-900">' + value + '</div>' +
+      '<div class="mt-1 text-xs text-slate-500">' + sub + '</div>' +
+    '</div>';
+  }
+
+  function desktopCurrentLifecycle() {
+    var el = document.getElementById('desktopFilterLifecycle');
+    return el ? el.value : 'active';
+  }
+
+  function desktopLoadCalon() {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        try {
+          DESKTOP_ALL_CALON = desktopUnwrapResponse(response);
+          desktopRenderCalonTable(DESKTOP_ALL_CALON);
+          DESKTOP_TEMPLATE_CALON_DATA = DESKTOP_ALL_CALON.filter(function(r) { return !r.isDeleted; });
+          desktopPopulateTemplateCalonOptions();
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(e) {
+        desktopShowToast('❌ ' + e.message);
+      })
+      .getDataCalon({ lifecycle: desktopCurrentLifecycle(), overdueOnly: false }, desktopTok());
+  }
+
+  function desktopFilterCalon() {
+    var search = (document.getElementById('desktopSearchCalon').value || '').toLowerCase();
+    var status = document.getElementById('desktopFilterStatus').value;
+    var jurusan = document.getElementById('desktopFilterJurusan').value;
+    var pic = document.getElementById('desktopFilterPic').value;
+
+    var data = DESKTOP_ALL_CALON.filter(function(r) {
+      if (search && !r.nama.toLowerCase().includes(search) && !r.noWa.includes(search) && !r.asalSekolah.toLowerCase().includes(search)) return false;
+      if (status && r.status !== status) return false;
+      if (jurusan && r.jurusan !== jurusan) return false;
+      if (pic && r.pic !== pic) return false;
+      return true;
+    });
+
+    desktopRenderCalonTable(data);
+  }
+
+  function desktopRenderCalonTable(data) {
+    DESKTOP_FILTERED_CALON = data;
+    document.getElementById('desktopCalonCount').textContent = 'Menampilkan ' + data.length + ' data';
+
+    var tbody = document.getElementById('desktopCalonTableBody');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-6 text-center text-slate-500">Tidak ada data</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(function(r, i) {
+      var actions = r.actions || {};
+      var actionHtml = '<div class="flex flex-wrap gap-2">';
+      actionHtml += '<button class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopOpenDetailFromRow(' + i + ')">Detail</button>';
+      if (actions.canEdit) {
+        actionHtml += '<button class="rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopOpenEditFromRow(' + i + ')">Edit</button>';
+      }
+      if (actions.canLogFollowup) {
+        actionHtml += '<button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopSwitchToFollowupFromRow(' + i + ')">Follow-up</button>';
+      }
+      actionHtml += '</div>';
+
+      return '<tr class="border-t border-slate-100 hover:bg-slate-50">' +
+        '<td class="px-6 py-4"><div class="font-semibold text-slate-900">' + r.nama + '</div><div class="mt-1 text-xs text-slate-500">' + r.noWa + '</div></td>' +
+        '<td class="px-6 py-4 text-slate-600">' + r.asalSekolah + '</td>' +
+        '<td class="px-6 py-4 text-slate-600">' + r.jurusan + '</td>' +
+        '<td class="px-6 py-4"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ' + desktopStatusClass(r.status) + '">' + (r.status || '-') + '</span></td>' +
+        '<td class="px-6 py-4 text-slate-600">' + (r.pic || '-') + '</td>' +
+        '<td class="px-6 py-4 text-slate-600">' + (r.jadwalFollowup || '-') + '</td>' +
+        '<td class="px-6 py-4">' + actionHtml + '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function desktopOpenDetailFromRow(index) {
+    var calon = DESKTOP_FILTERED_CALON[index];
+    if (!calon) return;
+    DESKTOP_SELECTED_CALON = calon;
+
+    document.getElementById('desktopDetailBody').innerHTML = '<div class="rounded-2xl bg-slate-100 p-4 text-sm text-slate-500">Memuat riwayat...</div>';
+    document.getElementById('desktopDetailModal').classList.remove('hidden');
+    document.getElementById('desktopDetailModal').classList.add('flex');
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        try {
+          desktopRenderDetail(calon, desktopUnwrapResponse(res));
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(e) {
+        desktopShowToast('❌ ' + e.message);
+      })
+      .getFollowUpByCalon(calon.id, desktopTok());
+  }
+
+  function desktopCloseDetailModal() {
+    document.getElementById('desktopDetailModal').classList.add('hidden');
+    document.getElementById('desktopDetailModal').classList.remove('flex');
+  }
+
+  function desktopRenderDetail(c, logs) {
+    var noWa62 = String(c.noWa || '').replace(/^0/, '');
+    var infoCard = function(lbl, val) {
+      return '<div class="rounded-2xl bg-slate-50 px-3 py-3">' +
+        '<div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">' + lbl + '</div>' +
+        '<div class="mt-1 text-sm font-semibold text-slate-900">' + (val || '-') + '</div>' +
+      '</div>';
+    };
+
+    var infoGrid = '<div class="grid grid-cols-3 gap-3">' +
+      infoCard('No WA', c.noWa) +
+      infoCard('Asal Sekolah', c.asalSekolah) +
+      infoCard('Jurusan', c.jurusan) +
+      infoCard('Sumber', c.sumber || '-') +
+      infoCard('PIC', c.pic || '-') +
+      infoCard('Prioritas', c.prioritas || '-') +
+      infoCard('Tanggal Masuk', c.tanggalMasuk || '-') +
+      infoCard('Jadwal FU', c.jadwalFollowup || '-') +
+      infoCard('Jumlah FU', c.jumlahFollowup || 0) +
+    '</div>';
+
+    var logHtml = logs.length === 0
+      ? '<div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Belum ada log follow-up.</div>'
+      : logs.map(function(l) {
+          return '<div class="rounded-3xl border border-slate-200 p-4 ' + (l.arah === 'Outbound' ? 'bg-blue-50' : 'bg-emerald-50') + '">' +
+            '<div class="mb-3 flex flex-wrap items-center gap-2">' +
+              desktopBadge(l.arah, desktopDirectionClass(l.arah)) +
+              '<span class="text-[11px] text-slate-500">' + l.tanggal + '</span>' +
+              '<span class="text-[11px] text-slate-500">' + l.pic + '</span>' +
+            '</div>' +
+            '<div class="rounded-2xl bg-white p-4 text-sm leading-6 whitespace-pre-wrap text-slate-700">' + l.isiPercakapan + '</div>' +
+            '<div class="mt-3 space-y-1.5 text-xs leading-5 text-slate-700">' +
+              (l.hasil ? '<div><b>Hasil:</b> ' + l.hasil + '</div>' : '') +
+              (l.nextAction ? '<div><b>Next:</b> ' + l.nextAction + '</div>' : '') +
+              (l.jadwalBerikutnya ? '<div><b>FU berikutnya:</b> ' + l.jadwalBerikutnya + '</div>' : '') +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+    var editBtn = document.getElementById('desktopDetailEditBtn');
+    var logBtn = document.getElementById('desktopDetailLogBtn');
+
+    var canEdit = !!(c.actions && c.actions.canEdit);
+    var canLog = !!(c.actions && c.actions.canLogFollowup);
+
+    editBtn.disabled = !canEdit;
+    editBtn.classList.toggle('opacity-50', !canEdit);
+
+    logBtn.disabled = !canLog;
+    logBtn.classList.toggle('opacity-50', !canLog);
+
+    document.getElementById('desktopDetailBody').innerHTML =
+      '<div class="space-y-6">' +
+        '<div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">' +
+          '<div class="flex items-start justify-between gap-4">' +
+            '<div class="min-w-0 flex-1">' +
+              '<div class="text-2xl font-bold text-slate-900">' + c.nama + '</div>' +
+              '<div class="mt-1 text-sm text-slate-500">' + c.id + ' · ' + (c.status || '-') + '</div>' +
+              '<div class="mt-3 flex flex-wrap gap-2">' +
+                desktopBadge(c.status || '-', desktopStatusClass(c.status)) +
+                desktopBadge(c.prioritas || '-', desktopPriorityClass(c.prioritas)) +
+                desktopBadge(c.pic || '-', 'bg-slate-100 text-slate-700') +
+              '</div>' +
+            '</div>' +
+            '<a href="https://wa.me/62' + noWa62 + '" target="_blank" class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white">Buka WA</a>' +
+          '</div>' +
+          (c.catatan ? '<div class="mt-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800"><b>Catatan:</b> ' + c.catatan + '</div>' : '') +
+        '</div>' +
+        '<div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">' + infoGrid + '</div>' +
+        '<div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">' +
+          '<div class="mb-4 text-base font-bold text-slate-900">Riwayat Percakapan (' + logs.length + ')</div>' +
+          '<div class="space-y-4">' + logHtml + '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function desktopOpenEditFromRow(index) {
+    var calon = DESKTOP_FILTERED_CALON[index];
+    if (!calon) return;
+    desktopOpenEditCalon(calon);
+  }
+
+  function desktopOpenEditFromDetail() {
+    if (!DESKTOP_SELECTED_CALON) return;
+    desktopOpenEditCalon(DESKTOP_SELECTED_CALON);
+  }
+
+  function desktopOpenEditCalon(calon) {
+    if (!(calon.actions && calon.actions.canEdit)) {
+      desktopShowToast('⚠️ Anda tidak memiliki izin edit.');
+      return;
+    }
+
+    DESKTOP_SELECTED_CALON = calon;
+
+    document.getElementById('desktop_f_id').value = calon.id || '';
+    document.getElementById('desktop_f_nama').value = calon.nama || '';
+    document.getElementById('desktop_f_noWa').value = calon.noWa || '';
+    document.getElementById('desktop_f_asalSekolah').value = calon.asalSekolah || '';
+    document.getElementById('desktop_f_jurusan').value = calon.jurusan || '';
+    document.getElementById('desktop_f_sumber').value = calon.sumber || '';
+    document.getElementById('desktop_f_status').value = calon.status || 'Baru';
+    document.getElementById('desktop_f_pic').value = calon.pic || '';
+    document.getElementById('desktop_f_prioritas').value = calon.prioritas || '';
+    document.getElementById('desktop_f_jadwal').value = desktopToInputDate(calon.jadwalFollowup);
+    document.getElementById('desktop_f_catatan').value = calon.catatan || '';
+
+    document.getElementById('desktopEditModal').classList.remove('hidden');
+    document.getElementById('desktopEditModal').classList.add('flex');
+  }
+
+  function desktopCloseEditModal() {
+    document.getElementById('desktopEditModal').classList.add('hidden');
+    document.getElementById('desktopEditModal').classList.remove('flex');
+  }
+
+  function desktopToInputDate(displayDate) {
+    if (!displayDate) return '';
+    var parts = String(displayDate).split('/');
+    if (parts.length !== 3) return '';
+    return parts[2] + '-' + parts[1] + '-' + parts[0];
+  }
+
+  function desktopSubmitEditCalon() {
+    var data = {
+      id: document.getElementById('desktop_f_id').value,
+      nama: document.getElementById('desktop_f_nama').value.trim(),
+      noWa: document.getElementById('desktop_f_noWa').value.trim(),
+      asalSekolah: document.getElementById('desktop_f_asalSekolah').value.trim(),
+      jurusan: document.getElementById('desktop_f_jurusan').value,
+      sumber: document.getElementById('desktop_f_sumber').value,
+      status: document.getElementById('desktop_f_status').value || 'Baru',
+      pic: document.getElementById('desktop_f_pic').value,
+      prioritas: document.getElementById('desktop_f_prioritas').value,
+      jadwalFollowup: document.getElementById('desktop_f_jadwal').value,
+      catatan: document.getElementById('desktop_f_catatan').value
+    };
+
+    if (!data.nama || !data.noWa || !data.asalSekolah || !data.jurusan || !data.pic) {
+      desktopShowToast('⚠️ Lengkapi field wajib.');
+      return;
+    }
+
+    var btn = document.getElementById('desktopEditSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan...';
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        btn.disabled = false;
+        btn.textContent = 'Simpan Perubahan';
+        try {
+          desktopUnwrapResponse(response);
+          desktopCloseEditModal();
+          desktopCloseDetailModal();
+          desktopShowToast('✅ Data calon diperbarui.');
+          desktopLoadCalon();
+          desktopLoadDashboard();
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Simpan Perubahan';
+        desktopShowToast('❌ ' + err.message);
+      })
+      .updateCalon(data, desktopTok());
+  }
+
+  function desktopOpenLogFromDetail() {
+    if (!DESKTOP_SELECTED_CALON) return;
+    desktopSwitchToFollowupCalon(DESKTOP_SELECTED_CALON);
+  }
+
+  function desktopSwitchToFollowupFromRow(index) {
+    var calon = DESKTOP_FILTERED_CALON[index];
+    if (!calon) return;
+    desktopSwitchToFollowupCalon(calon);
+  }
+
+  function desktopSwitchToFollowupCalon(calon) {
+    DESKTOP_SELECTED_CALON = calon;
+    desktopSwitchPage('followup');
+    document.getElementById('desktopSearchFU').value = calon.nama;
+    desktopSearchForFU();
+    desktopSelectFuCalon(calon);
+  }
+
+  function desktopSearchForFU() {
+    var q = (document.getElementById('desktopSearchFU').value || '').toLowerCase();
+    DESKTOP_FU_SEARCH_RESULTS = q ? DESKTOP_ALL_CALON.filter(function(c) {
+      return !c.isDeleted && (c.nama.toLowerCase().includes(q) || c.noWa.includes(q));
+    }).slice(0, 10) : [];
+    desktopRenderFollowupList(DESKTOP_FU_SEARCH_RESULTS);
+  }
+
+  function desktopRenderFollowupList(list) {
+    var el = document.getElementById('desktopFuCalonList');
+    if (!el) return;
+
+    if (!list.length) {
+      el.innerHTML = '<div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Tidak ada hasil.</div>';
+      return;
+    }
+
+    el.innerHTML = list.map(function(c, i) {
+      return '<button class="block w-full rounded-2xl border border-slate-200 bg-white p-4 text-left hover:bg-slate-50" onclick="desktopSelectFuCalon(DESKTOP_FU_SEARCH_RESULTS[' + i + '])">' +
+        '<div class="font-semibold text-slate-900">' + c.nama + '</div>' +
+        '<div class="mt-1 text-xs text-slate-500">' + c.noWa + ' · ' + c.jurusan + '</div>' +
+        '<div class="mt-2">' + desktopBadge(c.status, desktopStatusClass(c.status)) + '</div>' +
+      '</button>';
+    }).join('');
+  }
+
+  function desktopSelectFuCalon(calon) {
+    DESKTOP_SELECTED_CALON = calon;
+    var card = document.getElementById('desktopFuDetailCard');
+    card.innerHTML = '<div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Memuat riwayat...</div>';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        try {
+          var logs = desktopUnwrapResponse(res);
+          var logHtml = logs.length === 0
+            ? '<div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Belum ada log.</div>'
+            : logs.map(function(l) {
+                return '<div class="rounded-2xl p-4 ' + (l.arah === 'Outbound' ? 'bg-blue-50' : 'bg-emerald-50') + '">' +
+                  '<div class="mb-2 flex flex-wrap items-center gap-2">' +
+                    desktopBadge(l.arah, desktopDirectionClass(l.arah)) +
+                    '<span class="text-[11px] text-slate-500">' + l.tanggal + '</span>' +
+                    '<span class="text-[11px] text-slate-500">' + l.pic + '</span>' +
+                  '</div>' +
+                  '<div class="rounded-2xl bg-white p-4 text-sm whitespace-pre-wrap text-slate-700">' + l.isiPercakapan + '</div>' +
+                '</div>';
+              }).join('');
+
+          card.innerHTML =
+            '<div class="mb-4 flex items-center justify-between">' +
+              '<div>' +
+                '<div class="text-lg font-bold text-slate-900">' + calon.nama + '</div>' +
+                '<div class="mt-1 text-sm text-slate-500">' + calon.noWa + ' · ' + calon.jurusan + '</div>' +
+              '</div>' +
+              '<a href="https://wa.me/62' + String(calon.noWa || '').replace(/^0/, '') + '" target="_blank" class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white">Buka WA</a>' +
+            '</div>' +
+            '<div class="space-y-4">' + logHtml + '</div>';
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        desktopShowToast('❌ ' + err.message);
+      })
+      .getFollowUpByCalon(calon.id, desktopTok());
+  }
+
+  function desktopLoadTemplates() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        try {
+          DESKTOP_TEMPLATE_DATA = desktopUnwrapResponse(res) || [];
+          desktopRenderTemplateList();
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(err) {
+        desktopShowToast('❌ ' + err.message);
+      })
+      .getTemplateWA(desktopTok());
+  }
+
+  function desktopPopulateTemplateCalonOptions() {
+    var sel = document.getElementById('desktopTemplateCalonSelect');
+    if (!sel) return;
+    while (sel.options.length > 1) sel.remove(1);
+
+    (DESKTOP_TEMPLATE_CALON_DATA || []).forEach(function(c) {
+      var o = document.createElement('option');
+      o.value = c.id;
+      o.text = c.nama + ' · ' + c.jurusan + ' · ' + (c.pic || '-');
+      sel.add(o);
+    });
+  }
+
+  function desktopGetSelectedTemplateCalon() {
+    var sel = document.getElementById('desktopTemplateCalonSelect');
+    var id = sel ? sel.value : '';
+    return (DESKTOP_TEMPLATE_CALON_DATA || []).filter(function(c) { return c.id === id; })[0] || null;
+  }
+
+  function desktopRenderSmartTemplateText(template) {
+    var calon = desktopGetSelectedTemplateCalon();
+    var deadline = (document.getElementById('desktopTemplateDeadlineInput') || {}).value || '';
+    var text = template.isi;
+
+    var map = {
+      '[Nama]': calon ? calon.nama : '[Nama]',
+      '[PIC]': calon ? calon.pic : '[PIC]',
+      '[Jurusan]': calon ? calon.jurusan : '[Jurusan]',
+      '[AsalSekolah]': calon ? calon.asalSekolah : '[AsalSekolah]',
+      '[TanggalFollowup]': calon ? (calon.jadwalFollowup || '') : '[TanggalFollowup]',
+      '[Deadline]': deadline || '[Deadline]',
+      '[Status]': calon ? calon.status : '[Status]',
+      '[Prioritas]': calon ? calon.prioritas : '[Prioritas]',
+      '[Sumber]': calon ? calon.sumber : '[Sumber]',
+      '[TanggalMasuk]': calon ? calon.tanggalMasuk : '[TanggalMasuk]',
+      '[X]': deadline || '[X]'
+    };
+
+    Object.keys(map).forEach(function(key) {
+      text = text.split(key).join(map[key]);
+    });
+
+    return text;
+  }
+
+  function desktopRenderTemplateList() {
+    var container = document.getElementById('desktopTemplateList');
+    if (!container) return;
+
+    if (!DESKTOP_TEMPLATE_DATA.length) {
+      container.innerHTML = '<div class="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Belum ada template.</div>';
+      return;
+    }
+
+    container.innerHTML = DESKTOP_TEMPLATE_DATA.map(function(t, i) {
+      return '<div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">' +
+        '<div class="flex items-start justify-between gap-4">' +
+          '<div class="min-w-0 flex-1">' +
+            '<div class="truncate text-base font-bold text-slate-900">' + t.nama + '</div>' +
+            '<div class="mt-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">' + t.situasi + '</div>' +
+          '</div>' +
+          '<div class="flex flex-wrap gap-2">' +
+            '<button class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopPreviewTemplate(' + i + ')">Preview</button>' +
+            '<button class="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopCopyTemplate(' + i + ')">Salin</button>' +
+            '<button class="rounded-2xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopUseTemplateToWA(' + i + ')">Buka WA</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mt-4 whitespace-pre-wrap rounded-2xl bg-white p-4 text-sm text-slate-700">' + t.isi + '</div>' +
+        '<div id="desktopTemplatePreview_' + i + '" class="mt-4 hidden whitespace-pre-wrap rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm text-slate-700"></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function desktopPreviewTemplate(i) {
+    var box = document.getElementById('desktopTemplatePreview_' + i);
+    if (!desktopGetSelectedTemplateCalon()) {
+      desktopShowToast('⚠️ Pilih calon terlebih dahulu.');
+      return;
+    }
+    box.classList.remove('hidden');
+    box.textContent = desktopRenderSmartTemplateText(DESKTOP_TEMPLATE_DATA[i]);
+  }
+
+  function desktopCopyTemplate(i) {
+    if (!desktopGetSelectedTemplateCalon()) {
+      desktopShowToast('⚠️ Pilih calon terlebih dahulu.');
+      return;
+    }
+
+    var teks = desktopRenderSmartTemplateText(DESKTOP_TEMPLATE_DATA[i]);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(teks).then(function() {
+        desktopShowToast('✅ Template berhasil disalin.');
+      }).catch(function() {
+        desktopFallbackCopy(teks);
+      });
+    } else {
+      desktopFallbackCopy(teks);
+    }
+  }
+
+  function desktopUseTemplateToWA(i) {
+    var calon = desktopGetSelectedTemplateCalon();
+    if (!calon) {
+      desktopShowToast('⚠️ Pilih calon terlebih dahulu.');
+      return;
+    }
+
+    var teks = desktopRenderSmartTemplateText(DESKTOP_TEMPLATE_DATA[i]);
+    window.open('https://wa.me/62' + String(calon.noWa || '').replace(/^0/, '') + '?text=' + encodeURIComponent(teks), '_blank');
+  }
+
+  function desktopFallbackCopy(teks) {
+    var ta = document.createElement('textarea');
+    ta.value = teks;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    desktopShowToast(ok ? '✅ Template disalin.' : '⚠️ Salin manual dengan Ctrl+C');
+  }
+
+  function desktopSendReminderNow() {
+    if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canSendReminder)) {
+      desktopShowToast('⚠️ Hanya ADMIN yang dapat mengirim reminder.');
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(response) {
+        try {
+          var res = desktopUnwrapResponse(response);
+          desktopShowToast('✉️ Reminder terkirim: ' + ((res.sent || []).length) + ' email.');
+        } catch (e) {
+          if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message);
+        }
+      })
+      .withFailureHandler(function(e) {
+        desktopShowToast('❌ Gagal kirim reminder: ' + e.message);
+      })
+      .sendDailyReminderEmails(desktopTok());
+  }
+
+  window.onload = function() {
+    DESKTOP_TOKEN = desktopLoadTokenFromStorage();
+    if (!DESKTOP_TOKEN) {
+      desktopShowLogin();
+      return;
+    }
+    desktopInitApp();
+  };
+</script>

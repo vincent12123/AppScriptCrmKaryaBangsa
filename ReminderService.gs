@@ -19,13 +19,15 @@ const ReminderService = {
     const byPic = {};
 
     (stats.reminderHariIni || []).forEach(function(item) {
-      const key = item.pic || 'Tanpa PIC';
-      if (!byPic[key]) byPic[key] = { dueToday: [], overdue: [] };
+      const picName = String(item.pic || '').trim() || 'Tanpa PIC';
+      const key = AuthService.normalizePicName(picName);
+      if (!byPic[key]) byPic[key] = { pic: picName, dueToday: [], overdue: [] };
       byPic[key].dueToday.push(item);
     });
     (stats.overdueCalon || []).forEach(function(item) {
-      const key = item.pic || 'Tanpa PIC';
-      if (!byPic[key]) byPic[key] = { dueToday: [], overdue: [] };
+      const picName = String(item.pic || '').trim() || 'Tanpa PIC';
+      const key = AuthService.normalizePicName(picName);
+      if (!byPic[key]) byPic[key] = { pic: picName, dueToday: [], overdue: [] };
       byPic[key].overdue.push(item);
     });
 
@@ -33,9 +35,10 @@ const ReminderService = {
     const sent = [];
     const skipped = [];
 
-    Object.keys(byPic).forEach(function(pic) {
-      const pack = byPic[pic];
-      const recipient = recipients[pic];
+    Object.keys(byPic).forEach(function(picKey) {
+      const pack = byPic[picKey];
+      const recipient = recipients[picKey];
+      const pic = (recipient && recipient.nama) || pack.pic;
       if (!recipient || !recipient.email) {
         skipped.push({ pic: pic, reason: 'Email PIC tidak ditemukan di sheet Users.' });
         ReminderService._logNotification_('SKIPPED', pic, 'DAILY_REMINDER', 'Reminder followup harian', 'Email PIC tidak ditemukan');
@@ -86,7 +89,7 @@ const ReminderService = {
       const email = String(r[COL.USERS.EMAIL - 1] || '').trim();
       const nama = String(r[COL.USERS.NAMA - 1] || '').trim();
       const aktif = !String(r[COL.USERS.AKTIF - 1] || '').trim() || normalizeBool(r[COL.USERS.AKTIF - 1]);
-      if (email && nama && aktif) out[nama] = { email: email, nama: nama };
+      if (email && nama && aktif) out[AuthService.normalizePicName(nama)] = { email: email, nama: nama };
     });
     return out;
   },

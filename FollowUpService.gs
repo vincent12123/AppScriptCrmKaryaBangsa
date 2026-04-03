@@ -3,11 +3,37 @@
 // Milestone 4
 // ============================================================
 
+function normalizePicName_(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function assertFollowupPicAllowed_(user, requestedPic) {
+  if (!user) throw new Error('User tidak valid.');
+
+  var role = String(user.role || '').trim().toUpperCase();
+  var userName = String(user.name || '').trim();
+  var pic = String(requestedPic || '').trim();
+
+  if (!pic) throw new Error('PIC wajib diisi.');
+
+  if (role === 'ADMIN') return pic;
+
+  if (role === 'PIC') {
+    if (normalizePicName_(pic) !== normalizePicName_(userName)) {
+      throw new Error('PIC hanya boleh mengirim log follow-up atas nama PIC sendiri.');
+    }
+    return userName;
+  }
+
+  throw new Error('Anda tidak memiliki izin menambah log follow-up.');
+}
+
 const FollowUpService = {
   add: function(data) {
     const user = AuthService.assertCanWrite();
-    const payload = Validation.validateFollowUpPayload(data);
+    const payload = Validation.validateFollowUpPayload(data, { user: user });
     const found = CalonService.findRowById_(payload.idCalon);
+    const pic = assertFollowupPicAllowed_(user, payload.pic);
     if (!AuthService.canLogFollowupForCalonRow(user, found.row)) throw new Error('Anda tidak memiliki izin menambah log untuk calon ini.');
 
     const ss = getSpreadsheet();
@@ -20,7 +46,7 @@ const FollowUpService = {
       payload.idCalon,
       payload.namaCalon,
       now,
-      payload.pic,
+      pic,
       payload.arah,
       payload.isiPercakapan,
       payload.hasil || '',
@@ -37,6 +63,7 @@ const FollowUpService = {
     updates[COL.DATA_CALON.UPDATED_BY - 1] = user.email;
     found.sheet.getRange(found.rowIndex, 1, 1, COL.DATA_CALON.COUNT).setValues([updates]);
 
+    payload.pic = pic;
     AuditService.log('CREATE_FOLLOWUP', 'FOLLOWUP', logId, 'Tambah log followup', payload, user);
     return { logId: logId };
   },

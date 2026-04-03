@@ -75,9 +75,10 @@ const ImportService = {
   },
 
   parseCsvText_: function(csvText) {
-    const normalized = String(csvText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    const lines = normalized.split('\n').filter(function(line) { return line.trim() !== ''; });
-    return lines.map(function(line) { return Utilities.parseCsv(line)[0] || []; });
+    const normalized = String(csvText || '').replace(/^\ufeff/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return Utilities.parseCsv(normalized).filter(function(row) {
+      return (row || []).some(function(cell) { return String(cell || '').trim() !== ''; });
+    });
   },
 
   mapRows_: function(rows) {

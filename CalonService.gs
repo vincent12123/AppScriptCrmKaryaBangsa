@@ -75,8 +75,8 @@ const CalonService = {
 
   add: function(data) {
     const user = AuthService.assertCanWrite();
-    const payload = Validation.validateCalonPayload(data);
-    if (AuthService.isPic(user) && payload.pic !== AuthService.getScopedPicName(user)) {
+    const payload = Validation.validateCalonPayload(data, { user: user });
+    if (AuthService.isPic(user) && !AuthService.isScopedPicMatch(user, payload.pic)) {
       throw new Error('PIC hanya boleh menambah calon untuk PIC dirinya sendiri.');
     }
     const sh = getSpreadsheet().getSheetByName(CONFIG.sheets.DATA_CALON);
@@ -113,11 +113,11 @@ const CalonService = {
 
   update: function(data) {
     const user = AuthService.assertCanWrite();
-    const payload = Validation.validateCalonPayload(data, { isUpdate: true });
+    const payload = Validation.validateCalonPayload(data, { isUpdate: true, user: user });
     if (!payload.id) throw new Error('ID calon wajib diisi untuk edit.');
     const found = this.findRowById_(payload.id);
     if (!AuthService.canMutateCalonRow(user, found.row)) throw new Error('Anda tidak memiliki izin edit untuk calon ini.');
-    if (AuthService.isPic(user) && payload.pic !== AuthService.getScopedPicName(user)) {
+    if (AuthService.isPic(user) && !AuthService.isScopedPicMatch(user, payload.pic)) {
       throw new Error('PIC tidak boleh memindahkan calon ke PIC lain.');
     }
 

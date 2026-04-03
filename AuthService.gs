@@ -180,6 +180,28 @@ const AuthService = {
     return this.isPic(user) ? String((user && user.name) || '').trim() : '';
   },
 
+  getScopedPicOptionName: function(user) {
+    return this.resolveReferencePicName(this.getScopedPicName(user));
+  },
+
+  normalizePicName: function(value) {
+    return String(value || '').trim().toLowerCase();
+  },
+
+  resolveReferencePicName: function(picName) {
+    const normalized = this.normalizePicName(picName);
+    if (!normalized) return '';
+    const pics = getReferenceColumns().pics || [];
+    for (let i = 0; i < pics.length; i++) {
+      if (this.normalizePicName(pics[i]) === normalized) return pics[i];
+    }
+    return '';
+  },
+
+  isScopedPicMatch: function(user, picName) {
+    return this.normalizePicName(picName) === this.normalizePicName(this.getScopedPicName(user));
+  },
+
   canAccessCalonRow: function(user, row) {
     const deleted = normalizeBool(row[COL.DATA_CALON.IS_DELETED - 1]);
     const pic = String(row[COL.DATA_CALON.PIC - 1] || '').trim();
@@ -188,7 +210,7 @@ const AuthService = {
 
     if (this.isPic(user)) {
       if (!pic) return false;
-      if (pic !== this.getScopedPicName(user)) return false;
+      if (!this.isScopedPicMatch(user, pic)) return false;
       if (deleted && !this.canViewArchived(user)) return false;
       return true;
     }
@@ -200,7 +222,7 @@ const AuthService = {
     if (this.isAdmin(user)) return true;
     if (!this.isPic(user)) return false;
     if (normalizeBool(row[COL.DATA_CALON.IS_DELETED - 1])) return false;
-    return String(row[COL.DATA_CALON.PIC - 1] || '').trim() === this.getScopedPicName(user);
+    return this.isScopedPicMatch(user, row[COL.DATA_CALON.PIC - 1]);
   },
 
   canRestoreCalonRow: function(user, row) {

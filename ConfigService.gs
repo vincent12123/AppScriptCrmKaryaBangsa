@@ -10,7 +10,7 @@ const ConfigService = {
     return {
       user: user,
       scope: {
-        picName: AuthService.getScopedPicName(user),
+        picName: AuthService.getScopedPicOptionName(user) || AuthService.getScopedPicName(user),
         lifecycle: AuthService.canViewArchived(user) ? ['active', 'archived', 'all'] : ['active']
       },
       permissions: {

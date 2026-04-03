@@ -217,21 +217,45 @@
   function populateDropdowns(cfg) {
     fillSelect('f_jurusan', cfg.jurusans);
     fillSelect('f_sumber', cfg.sumbers);
-    fillSelect('f_pic', cfg.pics);
     fillSelect('f_prioritas', cfg.prioritas);
     fillSelect('f_status', cfg.statuses);
-    fillSelect('fu_pic', cfg.pics);
     fillSelect('fu_arah', cfg.arahs);
     fillSelect('fu_status', cfg.statuses, true);
     fillSelect('filterStatus', cfg.statuses, true);
     fillSelect('filterJurusan', cfg.jurusans, true);
     fillSelect('filterPic', cfg.pics, true);
-    var picMatch = cfg.pics.find(function(p) {
-      return p.toLowerCase().includes((CFG.user.name || '').toLowerCase());
-    });
-    if (picMatch) {
-      document.getElementById('f_pic').value = picMatch;
-      document.getElementById('fu_pic').value = picMatch;
+
+    var userRole = String((cfg.user && cfg.user.role) || '').toUpperCase();
+    var userName = String((cfg.user && cfg.user.name) || '').trim();
+    var scopedPics = getScopedPicOptions(cfg);
+
+    if (userRole === 'PIC') {
+      fillSelect('f_pic', scopedPics);
+      document.getElementById('f_pic').value = scopedPics[0] || '';
+      document.getElementById('f_pic').disabled = true;
+      document.getElementById('f_pic').classList.add('bg-slate-100');
+
+      fillSelect('fu_pic', scopedPics);
+      document.getElementById('fu_pic').value = scopedPics[0] || '';
+      document.getElementById('fu_pic').disabled = true;
+      document.getElementById('fu_pic').classList.add('bg-slate-100');
+    } else {
+      fillSelect('f_pic', cfg.pics);
+      fillSelect('fu_pic', cfg.pics);
+
+      document.getElementById('f_pic').disabled = false;
+      document.getElementById('fu_pic').disabled = false;
+      document.getElementById('f_pic').classList.remove('bg-slate-100');
+      document.getElementById('fu_pic').classList.remove('bg-slate-100');
+
+      var picMatch = (cfg.pics || []).find(function(p) {
+        return String(p || '').toLowerCase().includes(userName.toLowerCase());
+      });
+
+      if (picMatch) {
+        document.getElementById('f_pic').value = picMatch;
+        document.getElementById('fu_pic').value = picMatch;
+      }
     }
   }
 
@@ -245,6 +269,51 @@
       o.value = o.text = v;
       sel.add(o);
     });
+  }
+
+  function getScopedPicOptions(cfg) {
+    var allPics = (cfg && cfg.pics) || [];
+    var user = (cfg && cfg.user) || {};
+    var role = String(user.role || '').toUpperCase();
+    var scopedName = String((cfg && cfg.scope && cfg.scope.picName) || '').trim();
+    var userName = String(user.name || '').trim();
+
+    if (role === 'PIC') {
+      if (scopedName) {
+        return [scopedName];
+      }
+
+      var exact = allPics.find(function(p) {
+        return String(p || '').trim().toLowerCase() === userName.toLowerCase();
+      });
+
+      if (exact) return [exact];
+      return userName ? [userName] : [];
+    }
+
+    return allPics;
+  }
+
+  function lockPicFieldIfNeeded(fieldId, cfg, preferredValue) {
+    var el = document.getElementById(fieldId);
+    if (!el) return;
+
+    var user = (cfg && cfg.user) || {};
+    var role = String(user.role || '').toUpperCase();
+    var scopedPics = getScopedPicOptions(cfg);
+
+    if (role === 'PIC') {
+      var value = scopedPics[0] || preferredValue || '';
+      fillSelect(fieldId, scopedPics.length ? scopedPics : (value ? [value] : []));
+      el.value = value;
+      el.disabled = true;
+      el.classList.add('bg-slate-100');
+    } else {
+      el.disabled = false;
+      el.classList.remove('bg-slate-100');
+      fillSelect(fieldId, (cfg && cfg.pics) || []);
+      if (preferredValue) el.value = preferredValue;
+    }
   }
 
   function updateTopbarActions(page) {
@@ -523,6 +592,7 @@
     document.getElementById('modalCalonTitle').textContent = 'Tambah Calon Baru';
     document.getElementById('modalCalonSubmitBtn').textContent = 'Simpan';
     document.getElementById('f_status').value = 'Baru';
+    lockPicFieldIfNeeded('f_pic', CFG, '');
     openModal('modalTambahCalon');
   }
 
@@ -544,7 +614,7 @@
     document.getElementById('f_asalSekolah').value = calon.asalSekolah || '';
     document.getElementById('f_jurusan').value     = calon.jurusan || '';
     document.getElementById('f_sumber').value      = calon.sumber || '';
-    document.getElementById('f_pic').value         = calon.pic || '';
+    lockPicFieldIfNeeded('f_pic', CFG, calon.pic || '');
     document.getElementById('f_prioritas').value   = calon.prioritas || '';
     document.getElementById('f_status').value      = calon.status || 'Baru';
     document.getElementById('f_jadwal').value      = toInputDate(calon.jadwalFollowup);
@@ -693,15 +763,28 @@
   // FOLLOWUP LOG
   // ══════════════════════════════════════════════════════════
   function openLogFU(calon) {
-    if (!(CFG.permissions && CFG.permissions.canWrite)) { showToast('⚠️ Akun Anda read only.'); return; }
+    if (!(CFG.permissions && CFG.permissions.canWrite)) {
+      showToast('⚠️ Akun Anda read only.');
+      return;
+    }
+
     selectedCalon = calon;
+
     document.getElementById('fuCalonInfo').innerHTML =
       '<div class="font-semibold text-slate-900">' + calon.nama + '</div>' +
       '<div class="mt-1 text-xs text-slate-500">' + calon.noWa + ' · ' + calon.jurusan + '</div>' +
-      '<div class="mt-2 flex flex-wrap gap-2">' + badge(calon.status, getStatusClass(calon.status)) + badge('PIC: ' + calon.pic, 'bg-white text-slate-700') + '</div>';
-    if (calon.pic) document.getElementById('fu_pic').value = calon.pic;
-    ['fu_isi','fu_hasil','fu_nextAction','fu_jadwal'].forEach(function(id) { document.getElementById(id).value = ''; });
+      '<div class="mt-2 flex flex-wrap gap-2">' +
+        badge(calon.status, getStatusClass(calon.status)) +
+        badge('PIC Data: ' + (calon.pic || '-'), 'bg-white text-slate-700') +
+      '</div>';
+
+    ['fu_isi','fu_hasil','fu_nextAction','fu_jadwal'].forEach(function(id) {
+      document.getElementById(id).value = '';
+    });
     document.getElementById('fu_status').value = '';
+
+    lockPicFieldIfNeeded('fu_pic', CFG, calon.pic || '');
+
     openModal('modalLogFU');
   }
 

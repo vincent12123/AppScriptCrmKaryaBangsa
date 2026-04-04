@@ -110,12 +110,22 @@ function parseDateInput(value) {
   var str = String(value || '').trim();
   if (!str) return null;
   var m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (m) {
+    // Buat tanggal di timezone WIB (UTC+7) untuk konsistensi dengan APP.timezone
+    var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    // new Date(y,m,d) membuat di timezone lokal server; konversi ke WIB
+    var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+    return new Date(utc + (7 * 3600000));
+  }
   m = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-  var d = new Date(str);
-  if (isNaN(d.getTime())) return null;
-  return d;
+  if (m) {
+    var d2 = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    var utc2 = d2.getTime() + (d2.getTimezoneOffset() * 60000);
+    return new Date(utc2 + (7 * 3600000));
+  }
+  var d3 = new Date(str);
+  if (isNaN(d3.getTime())) return null;
+  return d3;
 }
 
 function toCalonRecord(row) {

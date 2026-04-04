@@ -92,8 +92,10 @@ Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,S
 ```
 
 ## Struktur penting
+### Server-side (Google Apps Script)
 - `WebApp.gs`: endpoint web app, pemilihan mode mobile/desktop, wrapper token
 - `AuthService.gs`: login PIN, session token, permission helper
+- `Config.gs`: konstanta konfigurasi, indeks kolom, dan definisi sheet
 - `ConfigService.gs`: config dropdown, user scope, permission flags
 - `CalonService.gs`: CRUD data calon
 - `FollowUpService.gs`: log follow-up
@@ -101,10 +103,22 @@ Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,S
 - `ExportService.gs`: export CSV
 - `ImportService.gs`: import CSV
 - `ReminderService.gs`: kirim reminder dan trigger harian
+- `TemplateService.gs`: manajemen dan render template WhatsApp dengan placeholder
+- `Validation.gs`: validasi input, sanitasi data, dan normalisasi nomor WA
+- `AuditService.gs`: logging audit trail untuk setiap aksi user
+- `IdService.gs`: generator ID otomatis (CS-XXXX, LOG-XXXX) dengan lock
+- `Helpers.gs`: fungsi helper umum (getSpreadsheet, include, ok/fail, formatDateSafe, setDropdown)
+- `Setup.gs`: setup awal Google Sheets (semua sheet, dropdown, conditional formatting)
+
+### Client-side (HTML/JS)
 - `App.js.html`: script client untuk mobile
 - `AppDesktop.js.html`: script client untuk desktop
 - `AppBody.html`: UI mobile
 - `AppBodyDesktop.html`: UI desktop
+- `Styles.html`: meta tags, Tailwind CSS config, dan custom styles
+- `Index.html`: entry point web app (mobile)
+- `IndexDesktop.html`: entry point web app (desktop)
+- `appsscript.json`: konfigurasi project Apps Script
 
 ## Setup awal
 1. Push project ini ke Google Apps Script.

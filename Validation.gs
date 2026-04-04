@@ -50,6 +50,10 @@ const Validation = {
     const digits = String(noWa || '').replace(/\D/g, '');
     if (!digits) return '';
     if (digits.indexOf('62') === 0) return '0' + digits.slice(2);
+    // Handle nomor lokal tanpa prefix 0 (misal: 81234567890 → 081234567890)
+    if (digits.length >= 10 && digits.length <= 11 && digits.charAt(0) !== '0') {
+      return '0' + digits;
+    }
     return digits;
   },
 

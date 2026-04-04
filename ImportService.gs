@@ -19,7 +19,7 @@ const ImportService = {
     const sh = getSpreadsheet().getSheetByName(CONFIG.sheets.DATA_CALON);
     const now = new Date();
     const toAppend = [];
-    const report = { imported: 0, skipped: 0, errors: [] };
+    const report = { imported: 0, skipped: 0, errors: [], importedIds: [] };
     const skipDuplicates = options.skipDuplicates !== false;
 
     mapped.forEach(function(item) {
@@ -57,6 +57,7 @@ const ImportService = {
           user.email
         ]);
         report.imported++;
+        report.importedIds.push(id);
       } catch (err) {
         report.errors.push({ line: line, type: 'ERROR', message: err.message });
       }
@@ -67,7 +68,8 @@ const ImportService = {
       AuditService.log('IMPORT_CALON_CSV', 'CALON', 'BATCH', 'Import CSV calon', {
         imported: report.imported,
         skipped: report.skipped,
-        totalInput: mapped.length
+        totalInput: mapped.length,
+        importedIds: report.importedIds
       }, user);
     }
 

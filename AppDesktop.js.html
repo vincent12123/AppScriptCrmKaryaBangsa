@@ -141,7 +141,14 @@ function desktopUpdateTopbarActions(page) {
     if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canSendReminder) html += '<button class="rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white" onclick="desktopSendReminderNow()">Kirim Reminder</button>';
     el.innerHTML = html;
   } else if (page === 'calon') {
-    el.innerHTML = '<button class="rounded-2xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white" onclick="desktopOpenCreateCalon()">+ Tambah Calon</button>';
+    var parts = [];
+    if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canImport) {
+      parts.push('<button class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700" onclick="desktopOpenImportModal()">Import CSV</button>');
+    }
+    if (DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canWrite) {
+      parts.push('<button class="rounded-2xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white" onclick="desktopOpenCreateCalon()">+ Tambah Calon</button>');
+    }
+    el.innerHTML = parts.join('') || '<span class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-500">Read only</span>';
   } else if (page === 'template') {
     el.innerHTML = '<button class="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700" onclick="desktopLoadTemplates()">Refresh Template</button>';
   } else {
@@ -149,10 +156,24 @@ function desktopUpdateTopbarActions(page) {
   }
 }
 
-function desktopFillSelect(id, items) {
+function desktopApplyPermissionAwareUi() {
+  var lifecycle = document.getElementById('desktopFilterLifecycle');
+  if (lifecycle && !(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canViewArchived)) {
+    lifecycle.value = 'active';
+    Array.prototype.slice.call(lifecycle.options).forEach(function(opt) {
+      if (opt.value === 'archived' || opt.value === 'all') opt.remove();
+    });
+  }
+
+  var addBtn = document.getElementById('desktopInlineAddBtn');
+  if (addBtn) addBtn.classList.toggle('hidden', !(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canWrite));
+}
+
+function desktopFillSelect(id, items, keepFirst) {
   var sel = document.getElementById(id);
   if (!sel) return;
-  while (sel.options.length > 1) sel.remove(1);
+  var startIdx = keepFirst ? 1 : 0;
+  while (sel.options.length > startIdx) sel.remove(startIdx);
   (items || []).forEach(function(v) { var o = document.createElement('option'); o.value = o.text = v; sel.add(o); });
 }
 
@@ -202,15 +223,15 @@ function desktopLockPicFieldIfNeeded(fieldId, cfg, preferredValue) {
 }
 
 function desktopPopulateDropdowns(cfg) {
-  desktopFillSelect('desktopFilterStatus', cfg.statuses);
-  desktopFillSelect('desktopFilterJurusan', cfg.jurusans);
-  desktopFillSelect('desktopFilterPic', cfg.pics);
+  desktopFillSelect('desktopFilterStatus', cfg.statuses, true);
+  desktopFillSelect('desktopFilterJurusan', cfg.jurusans, true);
+  desktopFillSelect('desktopFilterPic', cfg.pics, true);
   desktopFillSelect('desktop_f_jurusan', cfg.jurusans);
   desktopFillSelect('desktop_f_sumber', cfg.sumbers);
   desktopFillSelect('desktop_f_prioritas', cfg.prioritas);
   desktopFillSelect('desktop_f_status', cfg.statuses);
   desktopFillSelect('desktop_fu_arah', cfg.arahs);
-  desktopFillSelect('desktop_fu_status', cfg.statuses);
+  desktopFillSelect('desktop_fu_status', cfg.statuses, true);
 
   var userRole = String((cfg.user && cfg.user.role) || '').toUpperCase();
   var userName = String((cfg.user && cfg.user.name) || '').trim();
@@ -244,6 +265,8 @@ function desktopPopulateDropdowns(cfg) {
       document.getElementById('desktop_fu_pic').value = picMatch;
     }
   }
+
+  desktopApplyPermissionAwareUi();
 }
 
 function desktopStatusClass(status) {
@@ -264,6 +287,10 @@ function desktopStatCard(label, value, sub) {
   return '<div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft"><div class="text-sm font-semibold text-slate-600">' + label + '</div><div class="mt-3 text-3xl font-bold text-slate-900">' + value + '</div><div class="mt-1 text-xs text-slate-500">' + sub + '</div></div>';
 }
 
+function desktopActionBtn(text, cls, onclick) {
+  return '<button class="rounded-2xl px-3 py-2 text-xs font-semibold ' + cls + '" onclick="' + onclick + '">' + text + '</button>';
+}
+
 function desktopLoadDashboard() {
   google.script.run.withSuccessHandler(function(res) {
     try { desktopRenderDashboard(desktopUnwrapResponse(res)); }
@@ -272,13 +299,16 @@ function desktopLoadDashboard() {
 }
 
 function desktopRenderDashboard(stats) {
-  var total = stats.total || 0, sudahDaftar = stats.sudahDaftar || 0, tidakJadi = stats.tidakJadi || 0, aktif = total - sudahDaftar - tidakJadi, overdue = (stats.overdueCalon || []).length;
-  document.getElementById('desktopStatGrid').innerHTML = [desktopStatCard('Total Calon', total, 'Terdaftar di sistem'), desktopStatCard('Sudah Daftar', sudahDaftar, 'Konversi berjalan'), desktopStatCard('Aktif Diproses', aktif, 'Masih dalam pipeline'), desktopStatCard('Overdue', overdue, 'Perlu ditindak')].join('');
+  var total = stats.total || 0, sudahDaftar = stats.sudahDaftar || 0, tidakJadi = stats.tidakJadi || 0, aktif = total - sudahDaftar - tidakJadi, overdue = (stats.overdueCalon || []).length, konversi = total ? Math.round((sudahDaftar / total) * 100) : 0;
+  document.getElementById('desktopStatGrid').innerHTML = [desktopStatCard('Total Calon', total, 'Terdaftar di sistem'), desktopStatCard('Sudah Daftar', sudahDaftar, konversi + '% konversi'), desktopStatCard('Aktif Diproses', aktif, 'Masih dalam pipeline'), desktopStatCard('Belum Follow-up', stats.belumPernahFollowup || 0, 'Perlu sentuhan pertama'), desktopStatCard('Calon Baru 7 Hari', stats.calonBaru7Hari || 0, 'Lead terbaru'), desktopStatCard('Arsip', stats.archived || 0, 'Calon diarsipkan'), desktopStatCard('Overdue', overdue, 'Perlu ditindak')].join('');
   var totalSafe = total || 1;
   var colors = {'Baru':'bg-blue-500','Dihubungi':'bg-amber-500','Tertarik':'bg-emerald-500','Proses Daftar':'bg-purple-500','Sudah Daftar':'bg-cyan-500','Tidak Jadi':'bg-rose-500'};
   document.getElementById('desktopPipelineChart').innerHTML = Object.keys(stats.byStatus || {}).map(function(s){ var n=stats.byStatus[s]; return desktopMiniBar(s,n,Math.round((n/totalSafe)*100), colors[s] || 'bg-slate-400');}).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
   document.getElementById('desktopJurusanChart').innerHTML = Object.keys(stats.byJurusan || {}).map(function(j){ var n=stats.byJurusan[j]; return desktopMiniBar(j,n,Math.round((n/totalSafe)*100), 'bg-brand-600');}).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
-  document.getElementById('desktopConversionChart').innerHTML = (stats.conversionByPic || []).map(function(row){ return '<div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm"><span class="font-medium text-slate-700">'+row.pic+'</span><span class="font-bold text-slate-900">'+row.konversi+'%</span></div>';}).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+  document.getElementById('desktopConversionChart').innerHTML = (stats.conversionByPic || []).map(function(row){ return '<div class="rounded-2xl bg-slate-50 p-3"><div class="flex items-center justify-between text-sm"><span class="font-medium text-slate-700">'+row.pic+'</span><span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">'+row.sudahDaftar+'/'+row.total+' daftar</span></div><div class="mt-2">'+desktopMiniBar('Konversi', row.konversi, row.konversi, 'bg-emerald-500')+'</div></div>';}).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+  document.getElementById('desktopPicChart').innerHTML = Object.keys(stats.byPic || {}).map(function(p){ return '<div class="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm"><span class="font-medium text-slate-700">'+p+'</span><span class="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">'+stats.byPic[p]+'</span></div>'; }).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+  document.getElementById('desktopSourceChart').innerHTML = Object.keys(stats.bySumber || {}).map(function(s){ var n=stats.bySumber[s]; return desktopMiniBar(s,n,Math.round((n/totalSafe)*100), 'bg-sky-500');}).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
+  document.getElementById('desktopTrendChart').innerHTML = (stats.monthlyTrend || []).map(function(row){ var max=0; (stats.monthlyTrend || []).forEach(function(x){ if (x.total > max) max = x.total; }); return desktopMiniBar(row.label, row.total, max ? Math.round((row.total / max) * 100) : 0, 'bg-fuchsia-500'); }).join('') || '<div class="text-sm text-slate-500">Belum ada data</div>';
   DESKTOP_REMINDER_DATA = stats.reminderHariIni || [];
   var chip = document.getElementById('desktopReminderCountChip');
   if (DESKTOP_REMINDER_DATA.length) { chip.textContent = DESKTOP_REMINDER_DATA.length + ' item'; chip.classList.remove('hidden'); } else chip.classList.add('hidden');
@@ -289,6 +319,8 @@ function desktopRenderDashboard(stats) {
 }
 
 function desktopCurrentLifecycle() { var el = document.getElementById('desktopFilterLifecycle'); return el ? el.value : 'active'; }
+function desktopCurrentFollowupState() { var el = document.getElementById('desktopFilterFollowupState'); return el ? el.value : ''; }
+function desktopWaLink(noWa) { window.open('https://wa.me/62' + String(noWa || '').replace(/^0/, ''), '_blank'); }
 function desktopLoadCalon() {
   google.script.run.withSuccessHandler(function(response) {
     try {
@@ -297,7 +329,7 @@ function desktopLoadCalon() {
       DESKTOP_TEMPLATE_CALON_DATA = DESKTOP_ALL_CALON.filter(function(r){ return !r.isDeleted; });
       desktopPopulateTemplateCalonOptions();
     } catch(e) { if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message); }
-  }).withFailureHandler(function(e){ desktopShowToast('❌ ' + e.message); }).getDataCalon({ lifecycle: desktopCurrentLifecycle(), overdueOnly: false }, desktopTok());
+  }).withFailureHandler(function(e){ desktopShowToast('❌ ' + e.message); }).getDataCalon({ lifecycle: desktopCurrentLifecycle(), overdueOnly: desktopCurrentFollowupState() === 'overdue' }, desktopTok());
 }
 function desktopFilterCalon() {
   var search = (document.getElementById('desktopSearchCalon').value || '').toLowerCase();
@@ -320,15 +352,25 @@ function desktopRenderCalonTable(data) {
   if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-6 text-center text-slate-500">Tidak ada data</td></tr>'; return; }
   tbody.innerHTML = data.map(function(r,i){
     var actions = r.actions || {};
-    var btns = '<div class="flex flex-wrap gap-2"><button class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopOpenDetailFromRow('+i+')">Detail</button>';
-    if (actions.canEdit) btns += '<button class="rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopOpenEditFromRow('+i+')">Edit</button>';
-    if (actions.canLogFollowup) btns += '<button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopSwitchToFollowupFromRow('+i+')">Follow-up</button>';
+    var btns = '<div class="flex flex-wrap gap-2">';
+    if (r.isDeleted) {
+      if (actions.canRestore) btns += '<button class="rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopRestoreArchivedCalon('+i+')">Restore</button>';
+      btns += '<button class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopOpenDetailFromRow('+i+')">Detail</button>';
+    } else {
+      btns += '<button class="rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopWaLink(\''+r.noWa+'\')">WA</button>';
+      btns += '<button class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700" onclick="desktopOpenDetailFromRow('+i+')">Detail</button>';
+      if (actions.canEdit) btns += '<button class="rounded-xl bg-brand-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopOpenEditFromRow('+i+')">Edit</button>';
+      if (actions.canReschedule) btns += '<button class="rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white" onclick="desktopPromptRescheduleCalon('+i+')">Jadwal</button>';
+      if (actions.canLogFollowup) btns += '<button class="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopSwitchToFollowupFromRow('+i+')">Log</button>';
+      if (actions.canArchive) btns += '<button class="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white" onclick="desktopConfirmDeleteCalon('+i+')">Arsip</button>';
+    }
     btns += '</div>';
-    return '<tr class="border-t border-slate-100 hover:bg-slate-50"><td class="px-6 py-4"><div class="font-semibold text-slate-900">'+r.nama+'</div><div class="mt-1 text-xs text-slate-500">'+r.noWa+'</div></td><td class="px-6 py-4 text-slate-600">'+r.asalSekolah+'</td><td class="px-6 py-4 text-slate-600">'+r.jurusan+'</td><td class="px-6 py-4"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold '+desktopStatusClass(r.status)+'">'+(r.status||'-')+'</span></td><td class="px-6 py-4 text-slate-600">'+(r.pic||'-')+'</td><td class="px-6 py-4 text-slate-600">'+(r.jadwalFollowup||'-')+'</td><td class="px-6 py-4">'+btns+'</td></tr>';
+    return '<tr class="border-t border-slate-100 hover:bg-slate-50'+(r.isDeleted ? ' bg-slate-50' : '')+'"><td class="px-6 py-4"><div class="font-semibold text-slate-900">'+r.nama+'</div><div class="mt-1 text-xs text-slate-500">'+r.noWa+'</div></td><td class="px-6 py-4 text-slate-600">'+r.asalSekolah+'</td><td class="px-6 py-4 text-slate-600">'+r.jurusan+'</td><td class="px-6 py-4"><div class="flex flex-wrap gap-2"><span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold '+desktopStatusClass(r.status)+'">'+(r.status||'-')+'</span>'+(r.isDeleted ? '<span class="inline-flex rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">Arsip</span>' : '')+'</div></td><td class="px-6 py-4 text-slate-600">'+(r.pic||'-')+'</td><td class="px-6 py-4 text-slate-600">'+(r.jadwalFollowup||'-')+'</td><td class="px-6 py-4">'+btns+'</td></tr>';
   }).join('');
 }
 
 function desktopOpenCreateCalon() {
+  if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canWrite)) { desktopShowToast('⚠️ Akun Anda read only.'); return; }
   DESKTOP_FORM_MODE = 'create';
   DESKTOP_SELECTED_CALON = null;
   document.getElementById('desktopEditTitle').textContent = 'Tambah Calon Baru';
@@ -365,6 +407,7 @@ function desktopOpenEditCalon(calon) {
 }
 function desktopCloseEditModal() { document.getElementById('desktopEditModal').classList.add('hidden'); document.getElementById('desktopEditModal').classList.remove('flex'); }
 function desktopSubmitEditCalon() {
+  if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canWrite)) { desktopShowToast('⚠️ Akun Anda read only.'); return; }
   var data = {
     id: document.getElementById('desktop_f_id').value,
     nama: document.getElementById('desktop_f_nama').value.trim(),
@@ -389,12 +432,64 @@ function desktopSubmitEditCalon() {
   }).withFailureHandler(function(err){ btn.disabled=false; btn.textContent = DESKTOP_FORM_MODE === 'create' ? 'Simpan' : 'Simpan Perubahan'; desktopShowToast('❌ ' + err.message); })[fn](data, desktopTok());
 }
 
-function desktopOpenDetailFromRow(index) {
-  var calon = DESKTOP_FILTERED_CALON[index]; if (!calon) return;
+function desktopOpenReminderDetail(index) {
+  if (DESKTOP_REMINDER_DATA[index]) desktopOpenDetail(DESKTOP_REMINDER_DATA[index]);
+}
+
+function desktopOpenDetail(calon) {
+  if (!calon) return;
   DESKTOP_SELECTED_CALON = calon;
   document.getElementById('desktopDetailBody').innerHTML = '<div class="rounded-2xl bg-slate-100 p-4 text-sm text-slate-500">Memuat riwayat...</div>';
-  document.getElementById('desktopDetailModal').classList.remove('hidden'); document.getElementById('desktopDetailModal').classList.add('flex');
+  document.getElementById('desktopDetailModal').classList.remove('hidden');
+  document.getElementById('desktopDetailModal').classList.add('flex');
   google.script.run.withSuccessHandler(function(res){ try { desktopRenderDetail(calon, desktopUnwrapResponse(res)); } catch(e){ if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message); } }).withFailureHandler(function(e){ desktopShowToast('❌ ' + e.message); }).getFollowUpByCalon(calon.id, desktopTok());
+}
+
+function desktopPromptRescheduleCalon(index) {
+  var calon = typeof index === 'number' ? DESKTOP_FILTERED_CALON[index] : index;
+  if (!calon || !(calon.actions && calon.actions.canReschedule)) { desktopShowToast('⚠️ Anda tidak memiliki izin reschedule.'); return; }
+  DESKTOP_SELECTED_CALON = calon;
+  document.getElementById('desktopRescheduleDateInput').value = desktopToInputDate(calon.jadwalFollowup) || '';
+  document.getElementById('desktopRescheduleModal').classList.remove('hidden');
+  document.getElementById('desktopRescheduleModal').classList.add('flex');
+}
+
+function desktopPromptRescheduleFromDetail() {
+  if (DESKTOP_SELECTED_CALON) desktopPromptRescheduleCalon(DESKTOP_SELECTED_CALON);
+}
+
+function desktopCloseRescheduleModal() {
+  document.getElementById('desktopRescheduleModal').classList.add('hidden');
+  document.getElementById('desktopRescheduleModal').classList.remove('flex');
+}
+
+function desktopSubmitRescheduleCalon() {
+  var newDate = document.getElementById('desktopRescheduleDateInput').value;
+  if (!DESKTOP_SELECTED_CALON) { desktopShowToast('⚠️ Calon belum dipilih.'); return; }
+  if (!newDate) { desktopShowToast('⚠️ Pilih tanggal follow-up baru terlebih dahulu.'); return; }
+  google.script.run.withSuccessHandler(function(response){
+    try { desktopUnwrapResponse(response); desktopCloseRescheduleModal(); desktopCloseDetailModal(); desktopShowToast('📅 Jadwal follow-up diperbarui.'); desktopLoadCalon(); desktopLoadDashboard(); }
+    catch(e){ if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message); }
+  }).withFailureHandler(function(err){ desktopShowToast('❌ Gagal reschedule: ' + err.message); }).rescheduleCalon({ idCalon: DESKTOP_SELECTED_CALON.id, jadwalFollowup: newDate }, desktopTok());
+}
+
+function desktopConfirmDeleteCalon(index) {
+  var calon = DESKTOP_FILTERED_CALON[index];
+  if (!calon) return;
+  if (!confirm('Arsipkan data calon "' + calon.nama + '" (' + calon.id + ')?')) return;
+  google.script.run.withSuccessHandler(function(){ desktopShowToast('🗂 Data ' + calon.nama + ' berhasil diarsipkan.'); desktopLoadCalon(); desktopLoadDashboard(); }).withFailureHandler(function(err){ desktopShowToast('❌ Gagal arsip: ' + err.message); }).deleteCalon(calon.id, desktopTok());
+}
+
+function desktopRestoreArchivedCalon(index) {
+  var calon = DESKTOP_FILTERED_CALON[index];
+  if (!calon) return;
+  if (!confirm('Pulihkan data calon "' + calon.nama + '" (' + calon.id + ')?')) return;
+  google.script.run.withSuccessHandler(function(){ desktopShowToast('♻️ Data ' + calon.nama + ' berhasil dipulihkan.'); desktopLoadCalon(); desktopLoadDashboard(); }).withFailureHandler(function(err){ desktopShowToast('❌ Gagal restore: ' + err.message); }).restoreCalon(calon.id, desktopTok());
+}
+
+function desktopOpenDetailFromRow(index) {
+  var calon = DESKTOP_FILTERED_CALON[index];
+  desktopOpenDetail(calon);
 }
 function desktopCloseDetailModal() { document.getElementById('desktopDetailModal').classList.add('hidden'); document.getElementById('desktopDetailModal').classList.remove('flex'); }
 function desktopRenderDetail(c, logs) {
@@ -514,6 +609,78 @@ function desktopFallbackCopy(teks) {
 function desktopSendReminderNow() {
   if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canSendReminder)) { desktopShowToast('⚠️ Hanya ADMIN yang dapat mengirim reminder.'); return; }
   google.script.run.withSuccessHandler(function(response){ try { var res=desktopUnwrapResponse(response); desktopShowToast('✉️ Reminder terkirim: ' + ((res.sent || []).length) + ' email.'); } catch(e){ if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ ' + e.message); } }).withFailureHandler(function(e){ desktopShowToast('❌ ' + e.message); }).sendDailyReminderEmails(desktopTok());
+}
+
+function desktopDownloadReport(type) {
+  if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canExport)) { desktopShowToast('⚠️ Anda tidak memiliki izin export.'); return; }
+  google.script.run.withSuccessHandler(function(res) {
+    try {
+      var payload = desktopUnwrapResponse(res);
+      var blob = new Blob([payload.content], { type: payload.mimeType || 'text/csv' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = payload.filename || ('report-' + type + '.csv');
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(function() { URL.revokeObjectURL(link.href); document.body.removeChild(link); }, 0);
+    } catch (e) {
+      if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ Gagal export: ' + e.message);
+    }
+  }).withFailureHandler(function(err) { desktopShowToast('❌ Gagal export: ' + err.message); }).exportReport(type, { lifecycle: desktopCurrentLifecycle() }, desktopTok());
+}
+
+function desktopOpenImportModal() {
+  if (!(DESKTOP_CFG.permissions && DESKTOP_CFG.permissions.canImport)) { desktopShowToast('⚠️ Hanya ADMIN yang dapat import CSV.'); return; }
+  document.getElementById('desktopImportCsvText').value = '';
+  document.getElementById('desktopImportResultBox').classList.add('hidden');
+  document.getElementById('desktopImportResultBox').textContent = '';
+  document.getElementById('desktopImportModal').classList.remove('hidden');
+  document.getElementById('desktopImportModal').classList.add('flex');
+}
+
+function desktopCloseImportModal() {
+  document.getElementById('desktopImportModal').classList.add('hidden');
+  document.getElementById('desktopImportModal').classList.remove('flex');
+}
+
+function desktopHandleImportFile(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(evt) { document.getElementById('desktopImportCsvText').value = evt.target.result || ''; };
+  reader.readAsText(file);
+}
+
+function desktopSubmitImportCsv() {
+  var csvText = (document.getElementById('desktopImportCsvText').value || '').trim();
+  if (!csvText) { desktopShowToast('⚠️ Tempel isi CSV atau pilih file .csv terlebih dahulu.'); return; }
+  var btn = document.getElementById('desktopImportCsvSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Mengimpor...';
+  google.script.run.withSuccessHandler(function(res) {
+    btn.disabled = false;
+    btn.textContent = 'Import';
+    try {
+      var data = desktopUnwrapResponse(res);
+      var box = document.getElementById('desktopImportResultBox');
+      box.classList.remove('hidden');
+      var lines = ['Imported: ' + (data.imported || 0), 'Skipped: ' + (data.skipped || 0)];
+      if ((data.errors || []).length) {
+        lines.push('Detail:');
+        data.errors.slice(0, 20).forEach(function(err) { lines.push('- Baris ' + err.line + ' [' + err.type + ']: ' + err.message); });
+        if (data.errors.length > 20) lines.push('- ...dan ' + (data.errors.length - 20) + ' item lainnya');
+      }
+      box.textContent = lines.join('\n');
+      desktopLoadCalon();
+      desktopLoadDashboard();
+    } catch (e) {
+      if (e.message !== 'SESSION_EXPIRED') desktopShowToast('❌ Import error: ' + e.message);
+    }
+  }).withFailureHandler(function(err) {
+    btn.disabled = false;
+    btn.textContent = 'Import';
+    desktopShowToast('❌ Gagal import: ' + err.message);
+  }).importCalonCsv(csvText, { skipDuplicates: true }, desktopTok());
 }
 
 window.onload = function() {

@@ -1,111 +1,140 @@
-# CRM SPMB — Milestone 4
+# CRM SPMB
 
-Implementasi milestone 4 di atas milestone 3, fokus pada scale-up: import CSV, role-based access yang lebih tegas, dan hardening dasar.
+CRM berbasis Google Apps Script untuk kebutuhan SPMB/PPDB sekolah. Repo ini saat ini sudah mencakup milestone 4 plus pembaruan autentikasi PIN, session token, dan tampilan web app untuk mode mobile maupun desktop.
 
-## Yang dibawa dari milestone sebelumnya
-- refactor struktur
-- ID generator aman multi-user
-- validasi server-side
-- audit field
-- soft delete / arsip + restore
-- edit calon
-- overdue filter
-- reschedule followup
-- reminder email harian
-- template pintar
+## Ringkasan fitur
+- login menggunakan `email + PIN`
+- session berbasis token yang disimpan di `sessionStorage`
+- web app mode mobile dan desktop
+- dashboard pipeline calon siswa
+- manajemen data calon: tambah, edit, arsip, restore
+- log follow-up WhatsApp dan reschedule
+- template WhatsApp dengan placeholder data calon
 - export laporan CSV
-- dashboard lanjutan
+- import calon dari CSV
+- reminder email harian
+- validasi server-side, audit field, dan pembatasan akses per role
 
-## Fitur baru Milestone 4
+## Mode tampilan
+- default `mobile`
+- `desktop` bisa dibuka dengan parameter `?view=desktop`
 
-### 1) Import CSV
-- import calon dari file `.csv` atau paste isi CSV ke modal import
-- validasi per baris saat import
-- dukungan header fleksibel:
-  - `nama`
-  - `nama_lengkap`
-  - `no_wa`
-  - `wa`
-  - `whatsapp`
-  - `asal_sekolah`
-  - `jurusan`
-  - `sumber`
-  - `status`
-  - `pic`
-  - `prioritas`
-  - `jadwal_followup`
-  - `catatan`
-- default skip duplikat aktif berdasarkan kombinasi **nama + no WA**
-- hasil import mengembalikan ringkasan `imported / skipped / errors`
+Contoh:
 
-### 2) Role-based access penuh
-Role sekarang dibedakan lebih tegas:
+```text
+https://script.google.com/macros/s/DEPLOYMENT_ID/exec
+https://script.google.com/macros/s/DEPLOYMENT_ID/exec?view=desktop
+```
 
-#### ADMIN
+## Role dan akses
+
+### ADMIN
 - lihat semua data aktif dan arsip
 - tambah, edit, arsip, restore, reschedule
 - import CSV
 - export laporan
 - kirim reminder
 
-#### PIC
-- hanya melihat calon yang `PIC`-nya sama dengan **Nama** user pada sheet `Users`
-- hanya bisa edit / arsip / reschedule / log followup untuk calon miliknya sendiri
+### PIC
+- hanya melihat calon yang `PIC`-nya sesuai dengan nama user
+- hanya bisa edit, arsip, reschedule, dan log follow-up untuk calon miliknya sendiri
 - bisa export laporan sesuai scope miliknya
+- bisa melihat arsip miliknya jika diizinkan oleh filter lifecycle
 - tidak bisa restore arsip
 - tidak bisa import CSV
 
-#### VIEWER
+### VIEWER
 - read only
 - hanya melihat data aktif
 - tidak bisa edit, arsip, restore, import, export, atau kirim reminder
 
-> Penting: untuk role `PIC`, kolom **Nama** di sheet `Users` harus sama dengan nilai **PIC** pada data calon. Contoh: jika data calon memakai `Tim SPMB 1`, maka user PIC terkait juga harus punya `Nama = Tim SPMB 1`.
+Penting: untuk role `PIC`, kolom `Nama` di sheet `Users` harus cocok dengan nilai `PIC` pada referensi/data calon. Contoh: jika data memakai `Tim SPMB 1`, maka user PIC tersebut juga harus punya `Nama = Tim SPMB 1`.
 
-### 3) Hardening dasar
-- sanitasi input text untuk mencegah isi HTML/tag berlebih
-- pembatasan panjang field
-- parsing tanggal lebih aman (`YYYY-MM-DD` dan `DD/MM/YYYY`)
-- validasi ukuran import CSV
-- validasi jumlah baris import
-- pembatasan aksi UI berdasarkan izin per-record
+## Autentikasi
+- login dilakukan lewat endpoint `loginWithPin(credentials)`
+- setelah login berhasil, client menyimpan token session
+- hampir semua endpoint lain membutuhkan token
+- logout menghapus token dari cache session
 
-## File baru
-- `ImportService.gs`
+Sheet `Users` sekarang memakai kolom:
 
-## File utama yang berubah
-- `AuthService.gs`
-- `ConfigService.gs`
-- `CalonService.gs`
-- `FollowUpService.gs`
-- `DashboardService.gs`
-- `ExportService.gs`
-- `Validation.gs`
-- `App.js.html`
-- `AppBody.html`
-- `WebApp.gs`
+```text
+Email | Nama | Role | Aktif | PIN
+```
 
-## Endpoint baru
-- `importCalonCsv(csvText, options)`
+## Import CSV
+- bisa upload file `.csv` atau paste isi CSV ke modal import
+- validasi dilakukan per baris
+- default skip duplikat aktif berdasarkan kombinasi `nama + no WA`
+- hasil import mengembalikan ringkasan `imported / skipped / errors`
 
-## Cara pakai
-1. Push folder ini ke Apps Script.
-2. Untuk spreadsheet lama, jalankan `migrateMilestone4Schema()`.
-3. Pastikan sheet `Users` sudah terisi:
-   - `Email | Nama | Role | Aktif`
-4. Pastikan nama user role `PIC` cocok dengan nilai PIC pada data calon.
-5. Deploy ulang Web App.
-6. Untuk import, buka halaman **Data Calon** lalu klik **Import CSV** (hanya untuk ADMIN).
+Header fleksibel yang didukung:
+- `nama`
+- `nama_lengkap`
+- `no_wa`
+- `wa`
+- `whatsapp`
+- `asal_sekolah`
+- `jurusan`
+- `sumber`
+- `status`
+- `pic`
+- `prioritas`
+- `jadwal_followup`
+- `catatan`
 
-## Contoh CSV minimal
+Contoh CSV minimal:
+
 ```csv
 nama,no_wa,asal_sekolah,jurusan,sumber,status,pic,prioritas,jadwal_followup,catatan
 Budi Santoso,081234567890,SMP N 1 Sintang,RPL,Pameran,Baru,Tim SPMB 1,Tinggi,2026-04-05,Lead dari pameran
-Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,Sedang,2026-04-06,Followup kedua
+Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,Sedang,2026-04-06,Follow-up kedua
 ```
 
-## Catatan hardening
-- trigger reminder harian sekarang memakai `DashboardService.getStats(true)` agar tetap jalan saat dipanggil oleh trigger
+## Struktur penting
+- `WebApp.gs`: endpoint web app, pemilihan mode mobile/desktop, wrapper token
+- `AuthService.gs`: login PIN, session token, permission helper
+- `ConfigService.gs`: config dropdown, user scope, permission flags
+- `CalonService.gs`: CRUD data calon
+- `FollowUpService.gs`: log follow-up
+- `DashboardService.gs`: statistik dashboard
+- `ExportService.gs`: export CSV
+- `ImportService.gs`: import CSV
+- `ReminderService.gs`: kirim reminder dan trigger harian
+- `App.js.html`: script client untuk mobile
+- `AppDesktop.js.html`: script client untuk desktop
+- `AppBody.html`: UI mobile
+- `AppBodyDesktop.html`: UI desktop
+
+## Setup awal
+1. Push project ini ke Google Apps Script.
+2. Jalankan `setupCRMSPMB()` untuk membuat sheet awal.
+3. Isi sheet `Users`, termasuk kolom `PIN`.
+4. Pastikan nama user role `PIC` sesuai dengan referensi `PIC`.
+5. Jika memakai spreadsheet lama, jalankan `migrateMilestone4Schema()`.
+6. Deploy ulang sebagai Web App.
+
+## Endpoint utama
+- `loginWithPin(credentials)`
+- `logoutSession(token)`
+- `getConfig(token)`
+- `getDataCalon(filter, token)`
+- `addCalon(data, token)`
+- `updateCalon(data, token)`
+- `deleteCalon(id, token)`
+- `restoreCalon(id, token)`
+- `rescheduleCalon(data, token)`
+- `addFollowUp(data, token)`
+- `getFollowUpByCalon(idCalon, token)`
+- `getDashboardStats(token)`
+- `getTemplateWA(token)`
+- `exportReport(type, filter, token)`
+- `importCalonCsv(csvText, options, token)`
+- `sendDailyReminderEmails(token)`
+
+## Catatan implementasi
+- tampilan desktop tersedia lewat `IndexDesktop.html` dan `AppBodyDesktop.html`
+- reminder harian bisa dipasang lewat `installDailyReminderTrigger()`
 - restore arsip dibatasi ke `ADMIN`
 - export dibatasi ke `ADMIN` dan `PIC`
-- PIC tidak dapat memindahkan calon ke PIC lain saat edit
+- PIC tidak bisa memindahkan data ke PIC lain saat edit dan log follow-up

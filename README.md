@@ -93,22 +93,22 @@ Siti Rahayu,082345678901,SMP N 2 Sintang,TSM,Media Sosial,Dihubungi,Tim SPMB 2,S
 
 ## Struktur penting
 ### Server-side (Google Apps Script)
-- `WebApp.gs`: endpoint web app, pemilihan mode mobile/desktop, wrapper token
-- `AuthService.gs`: login PIN, session token, permission helper
-- `Config.gs`: konstanta konfigurasi, indeks kolom, dan definisi sheet
-- `ConfigService.gs`: config dropdown, user scope, permission flags
-- `CalonService.gs`: CRUD data calon
-- `FollowUpService.gs`: log follow-up
-- `DashboardService.gs`: statistik dashboard
-- `ExportService.gs`: export CSV
-- `ImportService.gs`: import CSV
-- `ReminderService.gs`: kirim reminder dan trigger harian
-- `TemplateService.gs`: manajemen dan render template WhatsApp dengan placeholder
-- `Validation.gs`: validasi input, sanitasi data, dan normalisasi nomor WA
-- `AuditService.gs`: logging audit trail untuk setiap aksi user
-- `IdService.gs`: generator ID otomatis (CS-XXXX, LOG-XXXX) dengan lock
-- `Helpers.gs`: fungsi helper umum (getSpreadsheet, include, ok/fail, formatDateSafe, setDropdown)
-- `Setup.gs`: setup awal Google Sheets (semua sheet, dropdown, conditional formatting)
+- `WebApp.js`: endpoint web app, pemilihan mode mobile/desktop, wrapper token
+- `AuthService.js`: login PIN, session token, permission helper
+- `Config.js`: konstanta konfigurasi, indeks kolom, dan definisi sheet
+- `ConfigService.js`: config dropdown, user scope, permission flags
+- `CalonService.js`: CRUD data calon
+- `FollowUpService.js`: log follow-up
+- `DashboardService.js`: statistik dashboard
+- `ExportService.js`: export CSV
+- `ImportService.js`: import CSV
+- `ReminderService.js`: kirim reminder dan trigger harian
+- `TemplateService.js`: manajemen dan render template WhatsApp dengan placeholder
+- `Validation.js`: validasi input, sanitasi data, dan normalisasi nomor WA
+- `AuditService.js`: logging audit trail untuk setiap aksi user
+- `IdService.js`: generator ID otomatis (CS-XXXX, LOG-XXXX) dengan lock
+- `Helpers.js`: fungsi helper umum (getSpreadsheet, include, ok/fail, formatDateSafe, setDropdown)
+- `Setup.js`: setup awal Google Sheets (semua sheet, dropdown, conditional formatting)
 
 ### Client-side (HTML/JS)
 - `App.js.html`: script client untuk mobile
